@@ -1,12 +1,15 @@
 use crate::token;
 
+use std::any::Any;
+
 /// The trait Node is implemented by all AST nodes.
 pub trait Node {
     fn token_literal(&self) -> &str;
 }
 
-pub trait Statement: Node {
+pub trait Statement: Node + Any {
     fn statement_node(&self);
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub trait Expression: Node {
@@ -55,19 +58,22 @@ impl LetStatement {
     }
 }
 
-impl<'a> Node for LetStatement {
+impl Node for LetStatement {
     fn token_literal(&self) -> &str {
         return &self.token.value();
     }
 }
 
-impl<'a> Statement for LetStatement {
+impl Statement for LetStatement {
     fn statement_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        return self;
+    }
 }
 
 pub struct Identifier {
-    token: token::Token,
-    value: String,
+    pub token: token::Token,
+    pub value: String,
 }
 
 impl Identifier {
@@ -87,4 +93,55 @@ impl<'a> Node for Identifier {
 
 impl<'a> Expression for Identifier {
     fn expression_node(&self) {}
+}
+
+pub struct ReturnStatement {
+    pub token: token::Token,
+    pub return_value: Box<dyn Expression>,
+}
+
+impl ReturnStatement {
+    pub fn new(token: token::Token, return_value: Box<dyn Expression>) -> ReturnStatement {
+        ReturnStatement {
+            token,
+            return_value,
+        }
+    }
+}
+
+impl Node for ReturnStatement {
+    fn token_literal(&self) -> &str {
+        return &self.token.value();
+    }
+}
+
+impl Statement for ReturnStatement {
+    fn statement_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        return self;
+    }
+}
+
+pub struct ExpressionStatement {
+    pub token: token::Token,
+    pub expression: Box<dyn Expression>,
+}
+
+impl ExpressionStatement {
+    pub fn new(token: token::Token, expression: Box<dyn Expression>) -> ExpressionStatement {
+        ExpressionStatement { token, expression }
+    }
+}
+
+impl Node for ExpressionStatement {
+    fn token_literal(&self) -> &str {
+        return &self.token.value();
+    }
+}
+
+impl Statement for ExpressionStatement {
+    fn statement_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        return self;
+    }
 }
