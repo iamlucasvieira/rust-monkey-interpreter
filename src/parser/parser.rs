@@ -1,5 +1,7 @@
 use crate::{ast, lexer, token};
+use anyhow::{anyhow, Result};
 
+/// Parser struct
 pub struct Parser<'a> {
     lexer: &'a mut lexer::Lexer<'a>,
     cur_token: token::Token,
@@ -7,6 +9,7 @@ pub struct Parser<'a> {
     pub errors: Vec<String>,
 }
 
+/// Parser implementation
 impl<'a> Parser<'a> {
     fn new(lexer: &'a mut lexer::Lexer<'a>) -> Parser<'a> {
         let mut p = Parser {
@@ -25,14 +28,22 @@ impl<'a> Parser<'a> {
         self.peek_token = self.lexer.next_token();
     }
 
-    fn parse_program(&mut self) -> Result<ast::Program, String> {
+    fn parse_prefix(&mut self, t: &token::Token) -> Result<Box<dyn ast::Expression>> {
+        match t {
+            token::Token::IDENT(_) => self.parse_identifier(),
+            token::Token::INT(_) => self.parse_integer_literal(),
+            _ => Err(anyhow!("No prefix parse function for {:?}", t.value())),
+        }
+    }
+
+    fn parse_program(&mut self) -> Result<ast::Program> {
         let mut program = ast::Program::new();
 
         while self.cur_token != token::Token::EOF {
             let stmt = self.parse_statement();
             match stmt {
                 Ok(stmt) => program.statements.push(stmt),
-                Err(e) => self.errors.push(e),
+                Err(e) => self.errors.push(e.to_string()),
             }
             self.next_token();
         }
@@ -40,19 +51,19 @@ impl<'a> Parser<'a> {
         Ok(program)
     }
 
-    fn parse_statement(&mut self) -> Result<Box<dyn ast::Statement>, String> {
+    fn parse_statement(&mut self) -> Result<Box<dyn ast::Statement>> {
         match self.cur_token {
             token::Token::LET => self.parse_let_statement(),
             token::Token::RETURN => self.parse_return_statement(),
-            _ => Err(format!("Unknown token: {:?}", self.cur_token)),
+            _ => self.parse_expression_statement(),
         }
     }
 
-    fn parse_let_statement(&mut self) -> Result<Box<dyn ast::Statement>, String> {
+    fn parse_let_statement(&mut self) -> Result<Box<dyn ast::Statement>> {
         let let_token = self.cur_token.clone();
 
         if !self.expect_peek(&token::Token::IDENT(String::new())) {
-            return Err(format!(
+            return Err(anyhow!(
                 "Failed to parse let statement: Expected next token to be an identifier, got {:?}",
                 self.peek_token.value()
             ));
@@ -61,7 +72,7 @@ impl<'a> Parser<'a> {
         let name = self.cur_token.clone();
 
         if !self.expect_peek(&token::Token::ASSIGN) {
-            return Err(format!(
+            return Err(anyhow!(
                 "Failed to parse let statement: Expected next token to be '=', got {:?}",
                 self.peek_token.value()
             ));
@@ -80,7 +91,7 @@ impl<'a> Parser<'a> {
         return Ok(Box::new(stmt) as Box<dyn ast::Statement>);
     }
 
-    fn parse_return_statement(&mut self) -> Result<Box<dyn ast::Statement>, String> {
+    fn parse_return_statement(&mut self) -> Result<Box<dyn ast::Statement>> {
         let return_token = self.cur_token.clone();
 
         while !self.cur_token.is_of_type(&token::Token::SEMICOLON) {
@@ -95,6 +106,32 @@ impl<'a> Parser<'a> {
         return Ok(Box::new(stmt) as Box<dyn ast::Statement>);
     }
 
+    fn parse_expression_statement(&mut self) -> Result<Box<dyn ast::Statement>> {
+        let stmt = ast::ExpressionStatement::new(
+            self.cur_token.clone(),
+            self.parse_expression(Precedence::LOWEST)?,
+        );
+
+        if self.peek_token.is_of_type(&token::Token::SEMICOLON) {
+            self.next_token();
+        }
+
+        return Ok(Box::new(stmt) as Box<dyn ast::Statement>);
+    }
+
+    fn parse_identifier(&mut self) -> Result<Box<dyn ast::Expression>> {
+        Ok(Box::new(ast::Identifier::new(self.cur_token.clone())))
+    }
+
+    fn parse_integer_literal(&mut self) -> Result<Box<dyn ast::Expression>> {
+        Ok(Box::new(ast::IntegerLiteral::new(self.cur_token.clone())?))
+    }
+
+    fn parse_expression(&mut self, precedence: Precedence) -> Result<Box<dyn ast::Expression>> {
+        let cur_token = self.cur_token.clone();
+        self.parse_prefix(&cur_token)
+    }
+
     fn expect_peek(&mut self, t: &token::Token) -> bool {
         if self.peek_token.is_of_type(t) {
             self.next_token();
@@ -103,6 +140,17 @@ impl<'a> Parser<'a> {
             false
         }
     }
+}
+
+#[derive(PartialOrd, Ord, PartialEq, Eq, Debug)]
+enum Precedence {
+    LOWEST,
+    EQUALS,
+    LESSGREATER,
+    SUM,
+    PRODUCT,
+    PREFIX,
+    CALL,
 }
 
 #[cfg(test)]
@@ -160,5 +208,63 @@ return 993322;
                 .unwrap();
             assert_eq!(ast::Node::token_literal(stmt), "return");
         }
+    }
+
+    #[test]
+    fn test_parse_identifier_expression() {
+        let input = "foobar;";
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = p.parse_program().unwrap();
+
+        assert_eq!(p.errors.len(), 0, "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        let stmt = program.statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        let ident = stmt
+            .expression
+            .as_any()
+            .downcast_ref::<ast::Identifier>()
+            .unwrap();
+
+        assert_eq!(ident.value, "foobar");
+    }
+
+    #[test]
+    fn test_parse_integer_expression() {
+        let input = "5;";
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = p.parse_program().unwrap();
+
+        assert_eq!(p.errors.len(), 0, "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        let stmt = program.statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        let int = stmt
+            .expression
+            .as_any()
+            .downcast_ref::<ast::IntegerLiteral>()
+            .unwrap();
+
+        assert_eq!(int.value, 5);
     }
 }

@@ -1,5 +1,5 @@
 use crate::token;
-
+use anyhow::{Context, Result};
 use std::any::Any;
 
 /// The trait Node is implemented by all AST nodes.
@@ -13,8 +13,9 @@ pub trait Statement: Node + Any {
     fn as_any(&self) -> &dyn Any;
 }
 
-pub trait Expression: Node {
+pub trait Expression: Node + Any {
     fn expression_node(&self);
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub struct Program {
@@ -114,6 +115,41 @@ impl<'a> Node for Identifier {
 
 impl<'a> Expression for Identifier {
     fn expression_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        return self;
+    }
+}
+
+pub struct IntegerLiteral {
+    pub token: token::Token,
+    pub value: i64,
+}
+
+impl IntegerLiteral {
+    pub fn new(token: token::Token) -> Result<IntegerLiteral> {
+        let value = token
+            .value()
+            .parse::<i64>()
+            .with_context(|| format!("Failed to parse integer literal: {}", token.value()))?;
+        Ok(IntegerLiteral { token, value })
+    }
+}
+
+impl Node for IntegerLiteral {
+    fn token_literal(&self) -> &str {
+        return &self.token.value();
+    }
+
+    fn string(&self) -> String {
+        return self.value.to_string();
+    }
+}
+
+impl Expression for IntegerLiteral {
+    fn expression_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        return self;
+    }
 }
 
 pub struct ReturnStatement {
