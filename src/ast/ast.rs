@@ -152,6 +152,39 @@ impl Expression for IntegerLiteral {
     }
 }
 
+pub struct PrefixExpression {
+    pub operator: token::Token,
+    pub right: Box<dyn Expression>,
+}
+
+impl PrefixExpression {
+    pub fn new(operator: token::Token, right: Box<dyn Expression>) -> PrefixExpression {
+        PrefixExpression { operator, right }
+    }
+}
+
+impl Node for PrefixExpression {
+    fn token_literal(&self) -> &str {
+        return &self.operator.value();
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+        out.push_str("(");
+        out.push_str(&self.operator.value());
+        out.push_str(&self.right.string());
+        out.push_str(")");
+        return out;
+    }
+}
+
+impl Expression for PrefixExpression {
+    fn expression_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        return self;
+    }
+}
+
 pub struct ReturnStatement {
     pub token: token::Token,
     pub return_value: Box<dyn Expression>,

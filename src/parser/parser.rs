@@ -32,6 +32,7 @@ impl<'a> Parser<'a> {
         match t {
             token::Token::IDENT(_) => self.parse_identifier(),
             token::Token::INT(_) => self.parse_integer_literal(),
+            token::Token::BANG | token::Token::MINUS => self.parse_prefix_expression(),
             _ => Err(anyhow!("No prefix parse function for {:?}", t.value())),
         }
     }
@@ -125,6 +126,14 @@ impl<'a> Parser<'a> {
 
     fn parse_integer_literal(&mut self) -> Result<Box<dyn ast::Expression>> {
         Ok(Box::new(ast::IntegerLiteral::new(self.cur_token.clone())?))
+    }
+
+    fn parse_prefix_expression(&mut self) -> Result<Box<dyn ast::Expression>> {
+        let operator = self.cur_token.clone();
+        self.next_token();
+        let right = self.parse_expression(Precedence::PREFIX)?;
+        let prefix = ast::PrefixExpression::new(operator, right);
+        Ok(Box::new(prefix))
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Box<dyn ast::Expression>> {
@@ -266,5 +275,45 @@ return 993322;
             .unwrap();
 
         assert_eq!(int.value, 5);
+    }
+
+    #[test]
+    fn test_parse_prefix_expression() {
+        let prefix_tests = vec![("!5;", "!", 5), ("-15;", "-", 15)];
+
+        for (input, operator, value) in prefix_tests {
+            let mut l = lexer::Lexer::new(input);
+            let mut p = Parser::new(&mut l);
+            let program = p.parse_program().unwrap();
+
+            println!("{:?}", p.errors);
+            assert_eq!(p.errors.len(), 0, "Parser has errors");
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "Program has wrong number of statements"
+            );
+
+            let stmt = program.statements[0]
+                .as_any()
+                .downcast_ref::<ast::ExpressionStatement>()
+                .unwrap();
+
+            let prefix = stmt
+                .expression
+                .as_any()
+                .downcast_ref::<ast::PrefixExpression>()
+                .unwrap();
+
+            assert_eq!(prefix.operator.value(), operator);
+
+            let int = prefix
+                .right
+                .as_any()
+                .downcast_ref::<ast::IntegerLiteral>()
+                .unwrap();
+
+            assert_eq!(int.value, value);
+        }
     }
 }
