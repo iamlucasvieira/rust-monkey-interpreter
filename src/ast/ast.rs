@@ -120,6 +120,7 @@ impl<'a> Expression for Identifier {
     }
 }
 
+#[derive(Debug)]
 pub struct IntegerLiteral {
     pub token: token::Token,
     pub value: i64,
@@ -179,6 +180,51 @@ impl Node for PrefixExpression {
 }
 
 impl Expression for PrefixExpression {
+    fn expression_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        return self;
+    }
+}
+
+pub struct InfixExpression {
+    pub left: Box<dyn Expression>,
+    pub operator: token::Token,
+    pub right: Box<dyn Expression>,
+}
+
+impl InfixExpression {
+    pub fn new(
+        left: Box<dyn Expression>,
+        operator: token::Token,
+        right: Box<dyn Expression>,
+    ) -> InfixExpression {
+        InfixExpression {
+            left,
+            operator,
+            right,
+        }
+    }
+}
+
+impl Node for InfixExpression {
+    fn token_literal(&self) -> &str {
+        return &self.operator.value();
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+        out.push_str("(");
+        out.push_str(&self.left.string());
+        out.push_str(" ");
+        out.push_str(&self.operator.value());
+        out.push_str(" ");
+        out.push_str(&self.right.string());
+        out.push_str(")");
+        return out;
+    }
+}
+
+impl Expression for InfixExpression {
     fn expression_node(&self) {}
     fn as_any(&self) -> &dyn Any {
         return self;

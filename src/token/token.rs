@@ -1,3 +1,5 @@
+use crate::parser::Precedence;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     ILLEGAL,
@@ -112,6 +114,16 @@ impl Token {
 
     pub fn is_of_type(&self, t: &Token) -> bool {
         std::mem::discriminant(self) == std::mem::discriminant(t)
+    }
+
+    pub fn precedence(&self) -> Precedence {
+        match self {
+            Token::EQ | Token::NOTEQ => Precedence::EQUALS,
+            Token::LT | Token::GT => Precedence::LESSGREATER,
+            Token::PLUS | Token::MINUS => Precedence::SUM,
+            Token::SLASH | Token::ASTERISK => Precedence::PRODUCT,
+            _ => Precedence::LOWEST,
+        }
     }
 }
 

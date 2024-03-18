@@ -81,6 +81,8 @@ impl<'a> Lexer<'a> {
                 } else {
                     break;
                 }
+            } else {
+                break;
             }
         }
         identifier.iter().collect()
