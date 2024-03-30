@@ -8,6 +8,7 @@ const ASCII_ART: &str = r#"
                           /___/  
 "#;
 fn main() {
+    env_logger::init();
     println!("{}", ASCII_ART);
     let _ = repl::start(&mut std::io::stdin(), &mut std::io::stdout());
 }
