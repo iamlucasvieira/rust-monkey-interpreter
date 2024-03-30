@@ -112,15 +112,15 @@ impl<'a> Parser<'a> {
             ));
         }
 
-        while !self.cur_token.is_of_type(&token::Token::SEMICOLON) {
+        self.next_token();
+
+        let value = self.parse_expression(Precedence::LOWEST)?;
+
+        if self.peek_token.is_of_type(&token::Token::SEMICOLON) {
             self.next_token();
         }
 
-        let stmt = ast::LetStatement::new(
-            let_token,
-            name,
-            Box::new(ast::Identifier::new(self.cur_token.clone())),
-        );
+        let stmt = ast::LetStatement::new(let_token, name, value);
 
         Ok(Box::new(stmt) as Box<dyn ast::Statement>)
     }
@@ -128,14 +128,14 @@ impl<'a> Parser<'a> {
     fn parse_return_statement(&mut self) -> Result<Box<dyn ast::Statement>> {
         let return_token = self.cur_token.clone();
 
-        while !self.cur_token.is_of_type(&token::Token::SEMICOLON) {
+        self.next_token();
+
+        let value = self.parse_expression(Precedence::LOWEST)?;
+        let stmt = ast::ReturnStatement::new(return_token, value);
+
+        if self.peek_token.is_of_type(&token::Token::SEMICOLON) {
             self.next_token();
         }
-
-        let stmt = ast::ReturnStatement::new(
-            return_token,
-            Box::new(ast::Identifier::new(self.cur_token.clone())),
-        );
 
         Ok(Box::new(stmt) as Box<dyn ast::Statement>)
     }
@@ -442,12 +442,6 @@ mod tests {
     use crate::lexer;
     use log::debug;
 
-    const INPUT: &str = r#"
-let x = 5;
-let y = 10;
-let foobar = 838383;
-"#;
-
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
     }
@@ -500,51 +494,67 @@ let foobar = 838383;
     }
 
     #[test]
-    fn test_let_statements() {
-        let mut l = lexer::Lexer::new(INPUT);
-        let mut p = Parser::new(&mut l);
-        let program = p.parse_program();
-        assert_eq!(program.is_ok(), true);
-    }
+    fn test_let_statments() {
+        let test_cases = vec![
+            ("let x = 5;", "x", Expected::INTEGER(5)),
+            ("let y = true;", "y", Expected::BOOLEAN(true)),
+            ("let foobar = y;", "foobar", Expected::IDENTIFIER("y")),
+        ];
 
-    #[test]
-    fn test_let_statement_identifiers() {
-        let mut l = lexer::Lexer::new(INPUT);
-        let mut p = Parser::new(&mut l);
-        let program = match p.parse_program() {
-            Ok(program) => program,
-            Err(e) => panic!("{}", e),
-        };
+        for (input, expected_name, expected_value) in test_cases {
+            let mut l = lexer::Lexer::new(input);
+            let mut p = Parser::new(&mut l);
+            let program = match p.parse_program() {
+                Ok(program) => program,
+                Err(e) => panic!("{}", e),
+            };
 
-        let expected = vec!["x", "y", "foobar"];
+            assert!(p.errors.is_empty(), "Parser has errors");
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "Program has wrong number of statements"
+            );
 
-        for (i, stmt) in program.statements.iter().enumerate() {
-            let stmt = stmt.as_any().downcast_ref::<ast::LetStatement>().unwrap();
-            assert_eq!(stmt.name.value, expected[i]);
+            let stmt = program.statements[0]
+                .as_any()
+                .downcast_ref::<ast::LetStatement>()
+                .unwrap();
+
+            assert_eq!(stmt.name.value, expected_name);
+            test_literal_expression(&stmt.value, expected_value);
         }
     }
 
     #[test]
     fn test_return_statements() {
-        let input = r#"
-return 5;
-return 10;
-return 993322;
-"#;
+        let test_cases = vec![
+            ("return 5;", Expected::INTEGER(5)),
+            ("return true;", Expected::BOOLEAN(true)),
+            ("return foobar;", Expected::IDENTIFIER("foobar")),
+        ];
 
-        let mut l = lexer::Lexer::new(input);
-        let mut p = Parser::new(&mut l);
-        let program = match p.parse_program() {
-            Ok(program) => program,
-            Err(e) => panic!("{}", e),
-        };
+        for (input, expected) in test_cases {
+            let mut l = lexer::Lexer::new(input);
+            let mut p = Parser::new(&mut l);
+            let program = match p.parse_program() {
+                Ok(program) => program,
+                Err(e) => panic!("{}", e),
+            };
 
-        for stmt in program.statements {
-            let stmt = stmt
+            assert!(p.errors.is_empty(), "Parser has errors");
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "Program has wrong number of statements"
+            );
+
+            let stmt = program.statements[0]
                 .as_any()
                 .downcast_ref::<ast::ReturnStatement>()
                 .unwrap();
-            assert_eq!(ast::Node::token_literal(stmt), "return");
+
+            test_literal_expression(&stmt.return_value, expected);
         }
     }
 
