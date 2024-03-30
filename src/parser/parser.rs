@@ -251,6 +251,18 @@ let foobar = 838383;
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
+    fn test_integer_literal(expr: &Box<dyn ast::Expression>, value: i64) {
+        let int = expr.as_any().downcast_ref::<ast::IntegerLiteral>().unwrap();
+        assert_eq!(int.value, value);
+        assert_eq!(int.token_literal(), value.to_string());
+    }
+
+    fn test_identifier(expr: &Box<dyn ast::Expression>, value: &str) {
+        let ident = expr.as_any().downcast_ref::<ast::Identifier>().unwrap();
+        assert_eq!(ident.value, value);
+        assert_eq!(ident.token_literal(), value);
+    }
+
     #[test]
     fn test_let_statements() {
         let mut l = lexer::Lexer::new(INPUT);
@@ -355,13 +367,7 @@ return 993322;
             .downcast_ref::<ast::ExpressionStatement>()
             .unwrap();
 
-        let int = stmt
-            .expression
-            .as_any()
-            .downcast_ref::<ast::IntegerLiteral>()
-            .unwrap();
-
-        assert_eq!(int.value, 5);
+        test_integer_literal(&stmt.expression, 5)
     }
 
     #[test]
@@ -396,13 +402,7 @@ return 993322;
 
             assert_eq!(prefix.operator.value(), operator);
 
-            let int = prefix
-                .right
-                .as_any()
-                .downcast_ref::<ast::IntegerLiteral>()
-                .unwrap();
-
-            assert_eq!(int.value, value);
+            test_integer_literal(&prefix.right, value);
         }
     }
 
@@ -446,23 +446,11 @@ return 993322;
                 .downcast_ref::<ast::InfixExpression>()
                 .unwrap();
 
-            let left = infix
-                .left
-                .as_any()
-                .downcast_ref::<ast::IntegerLiteral>()
-                .unwrap();
-
-            assert_eq!(left.value, expected_left);
+            test_integer_literal(&infix.left, expected_left);
 
             assert_eq!(infix.operator.value(), expected_operator);
 
-            let right = infix
-                .right
-                .as_any()
-                .downcast_ref::<ast::IntegerLiteral>()
-                .unwrap();
-
-            assert_eq!(right.value, expected_right);
+            test_integer_literal(&infix.right, expected_right);
         }
     }
 
@@ -485,6 +473,7 @@ return 993322;
                 "3 + 4 * 5 == 3 * 1 + 4 * 5",
                 "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
             ),
+            ("-1 + 2", "((-1) + 2)"),
         ];
 
         for (input, expected) in tests {
