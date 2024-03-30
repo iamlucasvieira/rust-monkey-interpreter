@@ -153,6 +153,35 @@ impl Expression for IntegerLiteral {
     }
 }
 
+pub struct Boolean {
+    pub token: token::Token,
+    pub value: bool,
+}
+
+impl Boolean {
+    pub fn new(token: token::Token) -> Boolean {
+        let value = token.is_of_type(&token::Token::TRUE);
+        Boolean { token, value }
+    }
+}
+
+impl Node for Boolean {
+    fn token_literal(&self) -> &str {
+        return &self.token.value();
+    }
+
+    fn string(&self) -> String {
+        return self.token.value().to_string();
+    }
+}
+
+impl Expression for Boolean {
+    fn expression_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        return self;
+    }
+}
+
 pub struct PrefixExpression {
     pub operator: token::Token,
     pub right: Box<dyn Expression>,
