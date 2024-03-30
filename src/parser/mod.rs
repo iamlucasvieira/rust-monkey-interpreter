@@ -37,6 +37,7 @@ impl<'a> Parser<'a> {
             token::Token::INT(_) => self.parse_integer_literal(),
             token::Token::BANG | token::Token::MINUS => self.parse_prefix_expression(),
             token::Token::TRUE | token::Token::FALSE => self.parse_boolean(),
+            token::Token::LPAREN => self.parse_grouped_expression(),
             _ => {
                 let message = format!("No prefix parse function for {:?}", t.value());
                 error!("{}", message);
@@ -172,6 +173,19 @@ impl<'a> Parser<'a> {
     fn parse_boolean(&mut self) -> Result<Box<dyn ast::Expression>> {
         debug!("Parsing boolean: {:?}", self.cur_token);
         Ok(Box::new(ast::Boolean::new(self.cur_token.clone())))
+    }
+
+    fn parse_grouped_expression(&mut self) -> Result<Box<dyn ast::Expression>> {
+        debug!("Parsing grouped expression: {:?}", self.cur_token);
+        self.next_token();
+        let expression = self.parse_expression(Precedence::LOWEST)?;
+        if !self.expect_peek(&token::Token::RPAREN) {
+            return Err(anyhow!(
+                "Expected next token to be ')', got {:?}",
+                self.peek_token
+            ));
+        }
+        Ok(expression)
     }
 
     fn parse_infix_expression(
@@ -558,6 +572,11 @@ return 993322;
             ("-1 + 2", "((-1) + 2)"),
             ("3 > 5 ==  false", "((3 > 5) == false)"),
             ("3 < 5 == true", "((3 < 5) == true)"),
+            ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            ("(5 + 5) * 2", "((5 + 5) * 2)"),
+            ("2 / (5 + 5)", "(2 / (5 + 5))"),
+            ("-(5 + 5)", "(-(5 + 5))"),
+            ("!(true == true)", "(!(true == true))"),
         ];
 
         for (input, expected) in tests {
