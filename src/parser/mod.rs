@@ -39,6 +39,7 @@ impl<'a> Parser<'a> {
             token::Token::TRUE | token::Token::FALSE => self.parse_boolean(),
             token::Token::LPAREN => self.parse_grouped_expression(),
             token::Token::IF => self.parse_if_expression(),
+            token::Token::FUNCTION => self.parse_function_literal(),
             _ => {
                 let message = format!("No prefix parse function for {:?}", t.value());
                 error!("{}", message);
@@ -58,6 +59,7 @@ impl<'a> Parser<'a> {
                 | token::Token::NOTEQ
                 | token::Token::LT
                 | token::Token::GT
+                | token::Token::LPAREN
         )
     }
 
@@ -237,6 +239,101 @@ impl<'a> Parser<'a> {
         Ok(Box::new(if_expr))
     }
 
+    fn parse_function_literal(&mut self) -> Result<Box<dyn ast::Expression>> {
+        debug!("Parsing function literal: {:?}", self.cur_token);
+        let fn_token = self.cur_token.clone();
+        if !self.expect_peek(&token::Token::LPAREN) {
+            return Err(anyhow!(
+                "Expected next token to be '(', got {:?}",
+                self.peek_token
+            ));
+        }
+
+        let parameters = self.parse_function_parameters()?;
+
+        if !self.expect_peek(&token::Token::LBRACE) {
+            return Err(anyhow!(
+                "Expected next token to be '{{', got {:?}",
+                self.peek_token
+            ));
+        }
+
+        let body = self.parse_block_statement()?;
+
+        Ok(Box::new(ast::FunctionLiteral::new(
+            fn_token, parameters, body,
+        )))
+    }
+
+    fn parse_call_expression(
+        &mut self,
+        function: Box<dyn ast::Expression>,
+    ) -> Result<Box<dyn ast::Expression>> {
+        debug!("Parsing call expression: {:?}", self.cur_token);
+        let call_token = self.cur_token.clone();
+        let arguments = self.parse_call_arguments()?;
+        Ok(Box::new(ast::CallExpression::new(
+            call_token, function, arguments,
+        )))
+    }
+
+    fn parse_call_arguments(&mut self) -> Result<Vec<Box<dyn ast::Expression>>> {
+        let mut arguments = Vec::new();
+
+        if self.peek_token.is_of_type(&token::Token::RPAREN) {
+            self.next_token();
+            return Ok(arguments);
+        }
+
+        self.next_token();
+        arguments.push(self.parse_expression(Precedence::LOWEST)?);
+
+        while self.peek_token.is_of_type(&token::Token::COMMA) {
+            self.next_token();
+            self.next_token();
+            arguments.push(self.parse_expression(Precedence::LOWEST)?);
+        }
+
+        if !self.expect_peek(&token::Token::RPAREN) {
+            return Err(anyhow!(
+                "Expected next token to be ')', got {:?}",
+                self.peek_token
+            ));
+        }
+
+        Ok(arguments)
+    }
+
+    fn parse_function_parameters(&mut self) -> Result<Vec<ast::Identifier>> {
+        let mut identifiers = Vec::new();
+
+        if self.peek_token.is_of_type(&token::Token::RPAREN) {
+            self.next_token();
+            return Ok(identifiers);
+        }
+
+        self.next_token();
+
+        let ident = ast::Identifier::new(self.cur_token.clone());
+        identifiers.push(ident);
+
+        while self.peek_token.is_of_type(&token::Token::COMMA) {
+            self.next_token();
+            self.next_token();
+            let ident = ast::Identifier::new(self.cur_token.clone());
+            identifiers.push(ident);
+        }
+
+        if !self.expect_peek(&token::Token::RPAREN) {
+            return Err(anyhow!(
+                "Expected next token to be ')', got {:?}",
+                self.peek_token
+            ));
+        }
+
+        Ok(identifiers)
+    }
+
     fn parse_block_statement(&mut self) -> Result<ast::BlockStatement> {
         debug!("Parsing block statement: {:?}", self.cur_token);
         let mut block = ast::BlockStatement::new(self.cur_token.clone());
@@ -251,6 +348,25 @@ impl<'a> Parser<'a> {
         }
 
         Ok(block)
+    }
+
+    fn parse_infix(&mut self, left: Box<dyn ast::Expression>) -> Result<Box<dyn ast::Expression>> {
+        debug!("Parsing infix: {:?}", self.cur_token);
+        match self.cur_token {
+            token::Token::PLUS
+            | token::Token::MINUS
+            | token::Token::SLASH
+            | token::Token::ASTERISK
+            | token::Token::EQ
+            | token::Token::NOTEQ
+            | token::Token::LT
+            | token::Token::GT => self.parse_infix_expression(left),
+            token::Token::LPAREN => self.parse_call_expression(left),
+            _ => Err(anyhow!(
+                "No infix parse function for {:?}",
+                self.cur_token.value()
+            )),
+        }
     }
 
     fn parse_infix_expression(
@@ -290,7 +406,7 @@ impl<'a> Parser<'a> {
             }
 
             self.next_token();
-            left_expression = self.parse_infix_expression(left_expression?);
+            left_expression = self.parse_infix(left_expression?);
             peek_precedence = self.peek_token.precedence();
         }
 
@@ -642,6 +758,15 @@ return 993322;
             ("2 / (5 + 5)", "(2 / (5 + 5))"),
             ("-(5 + 5)", "(-(5 + 5))"),
             ("!(true == true)", "(!(true == true))"),
+            ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            (
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
+            (
+                "add(a + b + c * d / f + g)",
+                "add((((a + b) + ((c * d) / f)) + g))",
+            ),
         ];
 
         for (input, expected) in tests {
@@ -759,5 +884,142 @@ return 993322;
             .unwrap();
 
         test_literal_expression(&alternative.expression, Expected::IDENTIFIER("y"));
+    }
+
+    #[test]
+    fn test_parse_function_literal() {
+        let input = "fn(x, y) { x + y; }";
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = match p.parse_program() {
+            Ok(program) => program,
+            Err(e) => panic!("{}", e),
+        };
+
+        assert!(p.errors.is_empty(), "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        let stmt = program.statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        let expr = stmt
+            .expression
+            .as_any()
+            .downcast_ref::<ast::FunctionLiteral>()
+            .unwrap();
+
+        assert_eq!(expr.parameters.len(), 2);
+        assert_eq!(expr.parameters[0].value, "x");
+        assert_eq!(expr.parameters[1].value, "y");
+
+        let body = expr.body.statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        test_infix_expression(
+            &body.expression,
+            Expected::IDENTIFIER("x"),
+            "+",
+            Expected::IDENTIFIER("y"),
+        );
+    }
+
+    #[test]
+    fn test_parse_function_parameters() {
+        let test_cases = vec![
+            ("fn() {};", vec![]),
+            ("fn(x) {};", vec!["x"]),
+            ("fn(x, y, z) {};", vec!["x", "y", "z"]),
+        ];
+
+        for (input, expected) in test_cases {
+            let mut l = lexer::Lexer::new(input);
+            let mut p = Parser::new(&mut l);
+            let program = match p.parse_program() {
+                Ok(program) => program,
+                Err(e) => panic!("{}", e),
+            };
+
+            assert!(p.errors.is_empty(), "Parser has errors");
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "Program has wrong number of statements"
+            );
+
+            let stmt = program.statements[0]
+                .as_any()
+                .downcast_ref::<ast::ExpressionStatement>()
+                .unwrap();
+
+            let expr = stmt
+                .expression
+                .as_any()
+                .downcast_ref::<ast::FunctionLiteral>()
+                .unwrap();
+
+            let params = expr
+                .parameters
+                .iter()
+                .map(|p| p.value.clone())
+                .collect::<Vec<String>>();
+            assert_eq!(params, expected);
+        }
+    }
+
+    #[test]
+    fn test_parse_call_expression() {
+        let input = "add(1, 2 * 3, 4 + 5);";
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = match p.parse_program() {
+            Ok(program) => program,
+            Err(e) => panic!("{}", e),
+        };
+
+        assert!(p.errors.is_empty(), "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        let stmt = program.statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        let expr = stmt
+            .expression
+            .as_any()
+            .downcast_ref::<ast::CallExpression>()
+            .unwrap();
+
+        test_identifier(&expr.function, "add");
+
+        assert_eq!(expr.arguments.len(), 3);
+
+        test_literal_expression(&expr.arguments[0], Expected::INTEGER(1));
+        test_infix_expression(
+            &expr.arguments[1],
+            Expected::INTEGER(2),
+            "*",
+            Expected::INTEGER(3),
+        );
+        test_infix_expression(
+            &expr.arguments[2],
+            Expected::INTEGER(4),
+            "+",
+            Expected::INTEGER(5),
+        );
     }
 }

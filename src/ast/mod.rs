@@ -352,9 +352,106 @@ impl Statement for BlockStatement {
     }
 }
 
+pub struct FunctionLiteral {
+    pub token: token::Token,
+    pub parameters: Vec<Identifier>,
+    pub body: BlockStatement,
+}
+
+impl FunctionLiteral {
+    pub fn new(
+        token: token::Token,
+        parameters: Vec<Identifier>,
+        body: BlockStatement,
+    ) -> FunctionLiteral {
+        FunctionLiteral {
+            token,
+            parameters,
+            body,
+        }
+    }
+}
+
+impl Node for FunctionLiteral {
+    fn token_literal(&self) -> &str {
+        self.token.value()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+        out.push_str(self.token_literal());
+        out.push('(');
+        let params_str = self
+            .parameters
+            .iter()
+            .map(|param| param.token_literal())
+            .collect::<Vec<&str>>()
+            .join(", ");
+        out.push_str(&params_str);
+        out.push_str(") ");
+        out.push_str(&self.body.string());
+        out
+    }
+}
+
+impl Expression for FunctionLiteral {
+    fn expression_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 pub struct ReturnStatement {
     pub token: token::Token,
     pub return_value: Box<dyn Expression>,
+}
+
+pub struct CallExpression {
+    pub token: token::Token,
+    pub function: Box<dyn Expression>,
+    pub arguments: Vec<Box<dyn Expression>>,
+}
+
+impl CallExpression {
+    pub fn new(
+        token: token::Token,
+        function: Box<dyn Expression>,
+        arguments: Vec<Box<dyn Expression>>,
+    ) -> CallExpression {
+        CallExpression {
+            token,
+            function,
+            arguments,
+        }
+    }
+}
+
+impl Node for CallExpression {
+    fn token_literal(&self) -> &str {
+        self.token.value()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+        out.push_str(&self.function.string());
+        out.push('(');
+        let args_str = self
+            .arguments
+            .iter()
+            .map(|arg| arg.string())
+            .collect::<Vec<String>>()
+            .join(", ");
+        out.push_str(&args_str);
+        out.push(')');
+        out
+    }
+}
+
+impl Expression for CallExpression {
+    fn expression_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl ReturnStatement {

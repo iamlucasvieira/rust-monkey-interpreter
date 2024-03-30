@@ -122,6 +122,7 @@ impl Token {
             Token::LT | Token::GT => Precedence::LESSGREATER,
             Token::PLUS | Token::MINUS => Precedence::SUM,
             Token::SLASH | Token::ASTERISK => Precedence::PRODUCT,
+            Token::LPAREN => Precedence::CALL,
             _ => Precedence::LOWEST,
         }
     }
