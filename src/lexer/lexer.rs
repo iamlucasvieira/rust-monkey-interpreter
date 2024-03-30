@@ -1,4 +1,5 @@
 use crate::token;
+use log::debug;
 
 /// Lexer is a struct that holds the state of the lexer.
 pub struct Lexer<'a> {
@@ -28,6 +29,7 @@ impl<'a> Lexer<'a> {
 
     /// Returns the next token from the input.
     pub fn next_token(&mut self) -> token::Token {
+        debug!("Getting next token");
         self.skip_whitespace();
 
         let tok = match self.ch {
@@ -104,6 +106,8 @@ impl<'a> Lexer<'a> {
                 } else {
                     break;
                 }
+            } else {
+                break;
             }
         }
         number.iter().collect()
