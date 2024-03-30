@@ -266,6 +266,92 @@ impl Expression for InfixExpression {
     }
 }
 
+pub struct IfExpression {
+    pub token: token::Token,
+    pub condition: Box<dyn Expression>,
+    pub consequence: BlockStatement,
+    pub alternative: Option<BlockStatement>,
+}
+
+impl IfExpression {
+    pub fn new(
+        token: token::Token,
+        condition: Box<dyn Expression>,
+        consequence: BlockStatement,
+        alternative: Option<BlockStatement>,
+    ) -> IfExpression {
+        IfExpression {
+            token,
+            condition,
+            consequence,
+            alternative,
+        }
+    }
+}
+
+impl Node for IfExpression {
+    fn token_literal(&self) -> &str {
+        self.token.value()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+        out.push_str("if");
+        out.push(' ');
+        out.push('(');
+        out.push_str(&self.condition.string());
+        out.push(')');
+        out.push_str(&self.consequence.string());
+        if let Some(alternative) = &self.alternative {
+            out.push_str("else");
+            out.push_str(&alternative.string());
+        }
+        out
+    }
+}
+
+impl Expression for IfExpression {
+    fn expression_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+pub struct BlockStatement {
+    pub token: token::Token,
+    pub statements: Vec<Box<dyn Statement>>,
+}
+
+impl BlockStatement {
+    pub fn new(token: token::Token) -> BlockStatement {
+        BlockStatement {
+            token,
+            statements: Vec::new(),
+        }
+    }
+}
+
+impl Node for BlockStatement {
+    fn token_literal(&self) -> &str {
+        self.token.value()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+        for statement in &self.statements {
+            out.push_str(&statement.string());
+        }
+        out
+    }
+}
+
+impl Statement for BlockStatement {
+    fn statement_node(&self) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 pub struct ReturnStatement {
     pub token: token::Token,
     pub return_value: Box<dyn Expression>,

@@ -38,6 +38,7 @@ impl<'a> Parser<'a> {
             token::Token::BANG | token::Token::MINUS => self.parse_prefix_expression(),
             token::Token::TRUE | token::Token::FALSE => self.parse_boolean(),
             token::Token::LPAREN => self.parse_grouped_expression(),
+            token::Token::IF => self.parse_if_expression(),
             _ => {
                 let message = format!("No prefix parse function for {:?}", t.value());
                 error!("{}", message);
@@ -186,6 +187,70 @@ impl<'a> Parser<'a> {
             ));
         }
         Ok(expression)
+    }
+
+    fn parse_if_expression(&mut self) -> Result<Box<dyn ast::Expression>> {
+        debug!("Parsing if expression: {:?}", self.cur_token);
+        if !self.expect_peek(&token::Token::LPAREN) {
+            return Err(anyhow!(
+                "Expected next token to be '(', got {:?}",
+                self.peek_token
+            ));
+        }
+        let if_token = self.cur_token.clone();
+
+        self.next_token();
+        let condition = self.parse_expression(Precedence::LOWEST)?;
+
+        if !self.expect_peek(&token::Token::RPAREN) {
+            return Err(anyhow!(
+                "Expected next token to be ')', got {:?}",
+                self.peek_token
+            ));
+        }
+
+        if !self.expect_peek(&token::Token::LBRACE) {
+            return Err(anyhow!(
+                "Expected next token to be '{{', got {:?}",
+                self.peek_token
+            ));
+        }
+
+        let consequence = self.parse_block_statement()?;
+        let mut alternative: Option<ast::BlockStatement> = None;
+
+        if self.peek_token.is_of_type(&token::Token::ELSE) {
+            self.next_token();
+
+            if !self.expect_peek(&token::Token::LBRACE) {
+                return Err(anyhow!(
+                    "Expected next token to be '{{', got {:?}",
+                    self.peek_token
+                ));
+            }
+
+            alternative = self.parse_block_statement().ok();
+        }
+
+        let if_expr = ast::IfExpression::new(if_token, condition, consequence, alternative);
+
+        Ok(Box::new(if_expr))
+    }
+
+    fn parse_block_statement(&mut self) -> Result<ast::BlockStatement> {
+        debug!("Parsing block statement: {:?}", self.cur_token);
+        let mut block = ast::BlockStatement::new(self.cur_token.clone());
+        self.next_token();
+
+        while !self.cur_token.is_of_type(&token::Token::RBRACE)
+            && !self.cur_token.is_of_type(&token::Token::EOF)
+        {
+            let stmt = self.parse_statement()?;
+            block.statements.push(stmt);
+            self.next_token();
+        }
+
+        Ok(block)
     }
 
     fn parse_infix_expression(
@@ -598,5 +663,101 @@ return 993322;
                 program.string()
             );
         }
+    }
+
+    #[test]
+    fn test_parse_if_expression() {
+        init();
+        let input = "if (x < y) { x }";
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = match p.parse_program() {
+            Ok(program) => program,
+            Err(e) => panic!("{}", e),
+        };
+
+        assert!(p.errors.is_empty(), "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        let stmt = program.statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        let expr = stmt
+            .expression
+            .as_any()
+            .downcast_ref::<ast::IfExpression>()
+            .unwrap();
+
+        test_infix_expression(
+            &expr.condition,
+            Expected::IDENTIFIER("x"),
+            "<",
+            Expected::IDENTIFIER("y"),
+        );
+
+        let consequence = expr.consequence.statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        test_literal_expression(&consequence.expression, Expected::IDENTIFIER("x"));
+    }
+
+    #[test]
+    fn test_parse_if_expression_with_else() {
+        let input = "if (x < y) { x } else { y }";
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = match p.parse_program() {
+            Ok(program) => program,
+            Err(e) => panic!("{}", e),
+        };
+
+        assert!(p.errors.is_empty(), "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        let stmt = program.statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        let expr = stmt
+            .expression
+            .as_any()
+            .downcast_ref::<ast::IfExpression>()
+            .unwrap();
+
+        test_infix_expression(
+            &expr.condition,
+            Expected::IDENTIFIER("x"),
+            "<",
+            Expected::IDENTIFIER("y"),
+        );
+
+        let consequence = expr.consequence.statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        test_literal_expression(&consequence.expression, Expected::IDENTIFIER("x"));
+
+        let alternative = expr.alternative.as_ref().unwrap().statements[0]
+            .as_any()
+            .downcast_ref::<ast::ExpressionStatement>()
+            .unwrap();
+
+        test_literal_expression(&alternative.expression, Expected::IDENTIFIER("y"));
     }
 }
