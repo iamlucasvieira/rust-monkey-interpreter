@@ -12,7 +12,7 @@ pub struct Parser<'a> {
 
 /// Parser implementation
 impl<'a> Parser<'a> {
-    fn new(lexer: &'a mut lexer::Lexer<'a>) -> Parser<'a> {
+    pub fn new(lexer: &'a mut lexer::Lexer<'a>) -> Parser<'a> {
         let mut p = Parser {
             lexer,
             cur_token: token::Token::EOF,
@@ -63,7 +63,7 @@ impl<'a> Parser<'a> {
         )
     }
 
-    fn parse_program(&mut self) -> Result<ast::Program> {
+    pub fn parse_program(&mut self) -> Result<ast::Program> {
         info!("Parsing program");
         let mut program = ast::Program::new();
         while self.cur_token != token::Token::EOF {

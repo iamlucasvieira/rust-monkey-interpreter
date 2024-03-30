@@ -1,5 +1,6 @@
+use crate::ast::Node;
 use crate::lexer;
-use crate::token;
+use crate::parser;
 use std::io::{BufRead, BufReader, Read, Result, Write};
 
 const PROMPT: &str = ">> ";
@@ -18,12 +19,10 @@ pub fn start(reader: &mut dyn Read, writer: &mut dyn Write) -> Result<()> {
         }
 
         let mut l = lexer::Lexer::new(&line);
-        loop {
-            let tok = l.next_token();
-            if tok == token::Token::EOF {
-                break;
-            }
-            writeln!(writer, "{:?}", tok).unwrap();
+        let mut p = parser::Parser::new(&mut l);
+
+        if let Ok(p) = p.parse_program() {
+            writeln!(writer, "{}", p.string())?;
         }
     }
 }

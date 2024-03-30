@@ -82,9 +82,9 @@ impl Node for LetStatement {
         let mut out = String::new();
         out.push_str(self.token_literal());
         out.push(' ');
-        out.push_str(self.name.token_literal());
+        out.push_str(&self.name.string());
         out.push_str(" = ");
-        out.push_str(self.value.token_literal());
+        out.push_str(&self.value.string());
         out.push(';');
         out
     }
@@ -384,8 +384,8 @@ impl Node for FunctionLiteral {
         let params_str = self
             .parameters
             .iter()
-            .map(|param| param.token_literal())
-            .collect::<Vec<&str>>()
+            .map(|param| param.string())
+            .collect::<Vec<String>>()
             .join(", ");
         out.push_str(&params_str);
         out.push_str(") ");
@@ -472,7 +472,7 @@ impl Node for ReturnStatement {
         let mut out = String::new();
         out.push_str(self.token_literal());
         out.push(' ');
-        out.push_str(self.return_value.token_literal());
+        out.push_str(&self.return_value.string());
         out.push(';');
         out
     }
