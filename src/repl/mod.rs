@@ -25,7 +25,7 @@ pub fn start<R: Read, W: Write>(reader: R, writer: &mut W) -> io::Result<()> {
         let mut parser = parser::Parser::new(&mut lexer);
 
         if let Ok(program) = parser.parse_program() {
-            if let Ok(evaluated) = evaluator::eval(&program) {
+            if let Ok(evaluated) = evaluator::eval(program.into()) {
                 writeln!(writer, "{}", evaluated)?;
             }
         }

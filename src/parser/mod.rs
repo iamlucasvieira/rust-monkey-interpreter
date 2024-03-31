@@ -30,7 +30,7 @@ impl<'a> Parser<'a> {
         debug!("Next token: {:?}", self.cur_token);
     }
 
-    fn parse_prefix(&mut self, t: &token::Token) -> Result<Box<dyn ast::Expression>> {
+    fn parse_prefix(&mut self, t: &token::Token) -> Result<ast::Expression> {
         info!("Parsing prefix: {:?}", t);
         match t {
             token::Token::IDENT(_) => self.parse_identifier(),
@@ -84,7 +84,7 @@ impl<'a> Parser<'a> {
         Ok(program)
     }
 
-    fn parse_statement(&mut self) -> Result<Box<dyn ast::Statement>> {
+    fn parse_statement(&mut self) -> Result<ast::Statement> {
         info!("Parsing statement: {:?}", self.cur_token);
         match self.cur_token {
             token::Token::LET => self.parse_let_statement(),
@@ -93,7 +93,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_let_statement(&mut self) -> Result<Box<dyn ast::Statement>> {
+    fn parse_let_statement(&mut self) -> Result<ast::Statement> {
         let let_token = self.cur_token.clone();
 
         if !self.expect_peek(&token::Token::IDENT(String::new())) {
@@ -119,28 +119,24 @@ impl<'a> Parser<'a> {
         if self.peek_token.is_of_type(&token::Token::SEMICOLON) {
             self.next_token();
         }
-
-        let stmt = ast::LetStatement::new(let_token, name, value);
-
-        Ok(Box::new(stmt) as Box<dyn ast::Statement>)
+        Ok(ast::LetStatement::new(let_token, name, value).into())
     }
 
-    fn parse_return_statement(&mut self) -> Result<Box<dyn ast::Statement>> {
+    fn parse_return_statement(&mut self) -> Result<ast::Statement> {
         let return_token = self.cur_token.clone();
 
         self.next_token();
 
         let value = self.parse_expression(Precedence::LOWEST)?;
-        let stmt = ast::ReturnStatement::new(return_token, value);
 
         if self.peek_token.is_of_type(&token::Token::SEMICOLON) {
             self.next_token();
         }
 
-        Ok(Box::new(stmt) as Box<dyn ast::Statement>)
+        Ok(ast::ReturnStatement::new(return_token, value).into())
     }
 
-    fn parse_expression_statement(&mut self) -> Result<Box<dyn ast::Statement>> {
+    fn parse_expression_statement(&mut self) -> Result<ast::Statement> {
         info!("Parsing expression statement");
         let stmt = ast::ExpressionStatement::new(
             self.cur_token.clone(),
@@ -150,35 +146,33 @@ impl<'a> Parser<'a> {
         if self.peek_token.is_of_type(&token::Token::SEMICOLON) {
             self.next_token();
         }
-
-        Ok(Box::new(stmt) as Box<dyn ast::Statement>)
+        Ok(stmt.into())
     }
 
-    fn parse_identifier(&mut self) -> Result<Box<dyn ast::Expression>> {
+    fn parse_identifier(&mut self) -> Result<ast::Expression> {
         debug!("Parsing identifier: {:?}", self.cur_token);
-        Ok(Box::new(ast::Identifier::new(self.cur_token.clone())))
+        Ok(ast::Identifier::new(self.cur_token.clone()).into())
     }
 
-    fn parse_integer_literal(&mut self) -> Result<Box<dyn ast::Expression>> {
+    fn parse_integer_literal(&mut self) -> Result<ast::Expression> {
         debug!("Parsing integer literal: {:?}", self.cur_token);
-        Ok(Box::new(ast::IntegerLiteral::new(self.cur_token.clone())?))
+        Ok(ast::IntegerLiteral::new(self.cur_token.clone())?.into())
     }
 
-    fn parse_prefix_expression(&mut self) -> Result<Box<dyn ast::Expression>> {
+    fn parse_prefix_expression(&mut self) -> Result<ast::Expression> {
         debug!("Parsing prefix expression: {:?}", self.cur_token);
         let operator = self.cur_token.clone();
         self.next_token();
         let right = self.parse_expression(Precedence::PREFIX)?;
-        let prefix = ast::PrefixExpression::new(operator, right);
-        Ok(Box::new(prefix))
+        Ok(ast::PrefixExpression::new(operator, right).into())
     }
 
-    fn parse_boolean(&mut self) -> Result<Box<dyn ast::Expression>> {
+    fn parse_boolean(&mut self) -> Result<ast::Expression> {
         debug!("Parsing boolean: {:?}", self.cur_token);
-        Ok(Box::new(ast::Boolean::new(self.cur_token.clone())))
+        Ok(ast::Boolean::new(self.cur_token.clone()).into())
     }
 
-    fn parse_grouped_expression(&mut self) -> Result<Box<dyn ast::Expression>> {
+    fn parse_grouped_expression(&mut self) -> Result<ast::Expression> {
         debug!("Parsing grouped expression: {:?}", self.cur_token);
         self.next_token();
         let expression = self.parse_expression(Precedence::LOWEST)?;
@@ -191,7 +185,7 @@ impl<'a> Parser<'a> {
         Ok(expression)
     }
 
-    fn parse_if_expression(&mut self) -> Result<Box<dyn ast::Expression>> {
+    fn parse_if_expression(&mut self) -> Result<ast::Expression> {
         debug!("Parsing if expression: {:?}", self.cur_token);
         if !self.expect_peek(&token::Token::LPAREN) {
             return Err(anyhow!(
@@ -234,12 +228,10 @@ impl<'a> Parser<'a> {
             alternative = self.parse_block_statement().ok();
         }
 
-        let if_expr = ast::IfExpression::new(if_token, condition, consequence, alternative);
-
-        Ok(Box::new(if_expr))
+        Ok(ast::IfExpression::new(if_token, condition, consequence, alternative).into())
     }
 
-    fn parse_function_literal(&mut self) -> Result<Box<dyn ast::Expression>> {
+    fn parse_function_literal(&mut self) -> Result<ast::Expression> {
         debug!("Parsing function literal: {:?}", self.cur_token);
         let fn_token = self.cur_token.clone();
         if !self.expect_peek(&token::Token::LPAREN) {
@@ -260,24 +252,17 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_block_statement()?;
 
-        Ok(Box::new(ast::FunctionLiteral::new(
-            fn_token, parameters, body,
-        )))
+        Ok(ast::FunctionLiteral::new(fn_token, parameters, body).into())
     }
 
-    fn parse_call_expression(
-        &mut self,
-        function: Box<dyn ast::Expression>,
-    ) -> Result<Box<dyn ast::Expression>> {
+    fn parse_call_expression(&mut self, function: ast::Expression) -> Result<ast::Expression> {
         debug!("Parsing call expression: {:?}", self.cur_token);
         let call_token = self.cur_token.clone();
         let arguments = self.parse_call_arguments()?;
-        Ok(Box::new(ast::CallExpression::new(
-            call_token, function, arguments,
-        )))
+        Ok(ast::CallExpression::new(call_token, function, arguments).into())
     }
 
-    fn parse_call_arguments(&mut self) -> Result<Vec<Box<dyn ast::Expression>>> {
+    fn parse_call_arguments(&mut self) -> Result<Vec<ast::Expression>> {
         let mut arguments = Vec::new();
 
         if self.peek_token.is_of_type(&token::Token::RPAREN) {
@@ -350,7 +335,7 @@ impl<'a> Parser<'a> {
         Ok(block)
     }
 
-    fn parse_infix(&mut self, left: Box<dyn ast::Expression>) -> Result<Box<dyn ast::Expression>> {
+    fn parse_infix(&mut self, left: ast::Expression) -> Result<ast::Expression> {
         debug!("Parsing infix: {:?}", self.cur_token);
         match self.cur_token {
             token::Token::PLUS
@@ -369,20 +354,16 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_infix_expression(
-        &mut self,
-        left: Box<dyn ast::Expression>,
-    ) -> Result<Box<dyn ast::Expression>> {
+    fn parse_infix_expression(&mut self, left: ast::Expression) -> Result<ast::Expression> {
         debug!("Parsing infix expression: {:?}", self.cur_token);
         let operator = self.cur_token.clone();
         let precedence = self.cur_token.precedence();
         self.next_token();
         let right = self.parse_expression(precedence)?;
-        let infix = ast::InfixExpression::new(left, operator, right);
-        Ok(Box::new(infix))
+        Ok(ast::InfixExpression::new(left, operator, right).into())
     }
 
-    fn parse_expression(&mut self, precedence: Precedence) -> Result<Box<dyn ast::Expression>> {
+    fn parse_expression(&mut self, precedence: Precedence) -> Result<ast::Expression> {
         let cur_token = self.cur_token.clone();
         let mut left_expression = self.parse_prefix(&cur_token);
         let mut peek_precedence = self.peek_token.precedence();
@@ -438,7 +419,7 @@ pub enum Precedence {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::Node;
+    use crate::ast::ASTNode;
     use crate::lexer;
     use log::debug;
 
@@ -446,22 +427,31 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    fn test_integer_literal(expr: &Box<dyn ast::Expression>, value: i64) {
-        let int = expr.as_any().downcast_ref::<ast::IntegerLiteral>().unwrap();
-        assert_eq!(int.value, value);
-        assert_eq!(int.token_literal(), value.to_string());
+    fn test_integer_literal(expr: &ast::Expression, value: i64) {
+        if let ast::Expression::Integer(int) = expr {
+            assert_eq!(int.value, value);
+            assert_eq!(int.token_literal(), value.to_string());
+        } else {
+            panic!("Expected IntegerLiteral, got {:?}", expr);
+        }
     }
 
-    fn test_identifier(expr: &Box<dyn ast::Expression>, value: &str) {
-        let ident = expr.as_any().downcast_ref::<ast::Identifier>().unwrap();
-        assert_eq!(ident.value, value);
-        assert_eq!(ident.token_literal(), value);
+    fn test_identifier(expr: &ast::Expression, value: &str) {
+        if let ast::Expression::Identifier(ident) = expr {
+            assert_eq!(ident.value, value);
+            assert_eq!(ident.token_literal(), value);
+        } else {
+            panic!("Expected Identifier, got {:?}", expr);
+        }
     }
 
-    fn test_boolean_literal(expr: &Box<dyn ast::Expression>, value: bool) {
-        let boolean = expr.as_any().downcast_ref::<ast::Boolean>().unwrap();
-        assert_eq!(boolean.value, value);
-        assert_eq!(boolean.token_literal(), value.to_string());
+    fn test_boolean_literal(expr: &ast::Expression, value: bool) {
+        if let ast::Expression::Boolean(boolean) = expr {
+            assert_eq!(boolean.value, value);
+            assert_eq!(boolean.token_literal(), value.to_string());
+        } else {
+            panic!("Expected Boolean, got {:?}", expr);
+        }
     }
 
     enum Expected<'a> {
@@ -470,7 +460,7 @@ mod tests {
         BOOLEAN(bool),
     }
 
-    fn test_literal_expression(expr: &Box<dyn ast::Expression>, expected: Expected) {
+    fn test_literal_expression(expr: &ast::Expression, expected: Expected) {
         match expected {
             Expected::INTEGER(value) => test_integer_literal(expr, value),
             Expected::IDENTIFIER(value) => test_identifier(expr, value),
@@ -479,18 +469,18 @@ mod tests {
     }
 
     fn test_infix_expression(
-        expr: &Box<dyn ast::Expression>,
+        expr: &ast::Expression,
         left: Expected,
         operator: &str,
         right: Expected,
     ) {
-        let infix = expr
-            .as_any()
-            .downcast_ref::<ast::InfixExpression>()
-            .unwrap();
-        test_literal_expression(&infix.left, left);
-        assert_eq!(infix.operator.value(), operator);
-        test_literal_expression(&infix.right, right);
+        if let ast::Expression::Infix(infix) = expr {
+            test_literal_expression(&infix.left, left);
+            assert_eq!(infix.operator.value(), operator);
+            test_literal_expression(&infix.right, right);
+        } else {
+            panic!("Expected InfixExpression, got {:?}", expr);
+        }
     }
 
     #[test]
@@ -516,13 +506,12 @@ mod tests {
                 "Program has wrong number of statements"
             );
 
-            let stmt = program.statements[0]
-                .as_any()
-                .downcast_ref::<ast::LetStatement>()
-                .unwrap();
-
-            assert_eq!(stmt.name.value, expected_name);
-            test_literal_expression(&stmt.value, expected_value);
+            if let ast::Statement::Let(stmt) = &program.statements[0] {
+                assert_eq!(stmt.name.value, expected_name);
+                test_literal_expression(&stmt.value, expected_value);
+            } else {
+                panic!("Expected LetStatement, got {:?}", program.statements[0]);
+            }
         }
     }
 
@@ -549,12 +538,11 @@ mod tests {
                 "Program has wrong number of statements"
             );
 
-            let stmt = program.statements[0]
-                .as_any()
-                .downcast_ref::<ast::ReturnStatement>()
-                .unwrap();
-
-            test_literal_expression(&stmt.return_value, expected);
+            if let ast::Statement::Return(stmt) = &program.statements[0] {
+                test_literal_expression(&stmt.return_value, expected);
+            } else {
+                panic!("Expected ReturnStatement, got {:?}", program.statements[0]);
+            }
         }
     }
 
@@ -576,12 +564,14 @@ mod tests {
             "Program has wrong number of statements"
         );
 
-        let stmt = program.statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
-
-        test_literal_expression(&stmt.expression, Expected::IDENTIFIER("foobar"));
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            test_identifier(&stmt.expression, "foobar");
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
     }
 
     #[test]
@@ -602,12 +592,14 @@ mod tests {
             "Program has wrong number of statements"
         );
 
-        let stmt = program.statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
-
-        test_literal_expression(&stmt.expression, Expected::INTEGER(5));
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            test_integer_literal(&stmt.expression, 5);
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
     }
 
     #[test]
@@ -634,20 +626,19 @@ mod tests {
                 "Program has wrong number of statements"
             );
 
-            let stmt = program.statements[0]
-                .as_any()
-                .downcast_ref::<ast::ExpressionStatement>()
-                .unwrap();
-
-            let prefix = stmt
-                .expression
-                .as_any()
-                .downcast_ref::<ast::PrefixExpression>()
-                .unwrap();
-
-            assert_eq!(prefix.operator.value(), operator);
-
-            test_literal_expression(&prefix.right, expected);
+            if let ast::Statement::Expression(stmt) = &program.statements[0] {
+                if let ast::Expression::Prefix(prefix) = &stmt.expression {
+                    assert_eq!(prefix.operator.value(), operator);
+                    test_literal_expression(&prefix.right, expected);
+                } else {
+                    panic!("Expected PrefixExpression, got {:?}", program.statements[0]);
+                }
+            } else {
+                panic!(
+                    "Expected ExpressionStatement, got {:?}",
+                    program.statements[0]
+                );
+            }
         }
     }
 
@@ -698,17 +689,19 @@ mod tests {
                 "Program has wrong number of statements"
             );
 
-            let stmt = program.statements[0]
-                .as_any()
-                .downcast_ref::<ast::ExpressionStatement>()
-                .unwrap();
-
-            test_infix_expression(
-                &stmt.expression,
-                expected_left,
-                expected_operator,
-                expected_right,
-            );
+            if let ast::Statement::Expression(stmt) = &program.statements[0] {
+                test_infix_expression(
+                    &stmt.expression,
+                    expected_left,
+                    expected_operator,
+                    expected_right,
+                );
+            } else {
+                panic!(
+                    "Expected ExpressionStatement, got {:?}",
+                    program.statements[0]
+                );
+            }
         }
     }
 
@@ -732,12 +725,14 @@ mod tests {
                 "Program has wrong number of statements"
             );
 
-            let stmt = program.statements[0]
-                .as_any()
-                .downcast_ref::<ast::ExpressionStatement>()
-                .unwrap();
-
-            test_literal_expression(&stmt.expression, Expected::BOOLEAN(expected));
+            if let ast::Statement::Expression(stmt) = &program.statements[0] {
+                test_literal_expression(&stmt.expression, Expected::BOOLEAN(expected));
+            } else {
+                panic!(
+                    "Expected ExpressionStatement, got {:?}",
+                    program.statements[0]
+                );
+            }
         }
     }
 
@@ -819,30 +814,30 @@ mod tests {
             "Program has wrong number of statements"
         );
 
-        let stmt = program.statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            if let ast::Expression::If(expr) = &stmt.expression {
+                test_infix_expression(
+                    &expr.condition,
+                    Expected::IDENTIFIER("x"),
+                    "<",
+                    Expected::IDENTIFIER("y"),
+                );
 
-        let expr = stmt
-            .expression
-            .as_any()
-            .downcast_ref::<ast::IfExpression>()
-            .unwrap();
-
-        test_infix_expression(
-            &expr.condition,
-            Expected::IDENTIFIER("x"),
-            "<",
-            Expected::IDENTIFIER("y"),
-        );
-
-        let consequence = expr.consequence.statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
-
-        test_literal_expression(&consequence.expression, Expected::IDENTIFIER("x"));
+                let consequence = &expr.consequence.statements[0];
+                if let ast::Statement::Expression(stmt) = consequence {
+                    test_literal_expression(&stmt.expression, Expected::IDENTIFIER("x"));
+                } else {
+                    panic!("Expected ExpressionStatement, got {:?}", consequence);
+                }
+            } else {
+                panic!("Expected IfExpression, got {:?}", program.statements[0]);
+            }
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
     }
 
     #[test]
@@ -863,37 +858,37 @@ mod tests {
             "Program has wrong number of statements"
         );
 
-        let stmt = program.statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            if let ast::Expression::If(expr) = &stmt.expression {
+                test_infix_expression(
+                    &expr.condition,
+                    Expected::IDENTIFIER("x"),
+                    "<",
+                    Expected::IDENTIFIER("y"),
+                );
 
-        let expr = stmt
-            .expression
-            .as_any()
-            .downcast_ref::<ast::IfExpression>()
-            .unwrap();
+                let consequence = &expr.consequence.statements[0];
+                if let ast::Statement::Expression(stmt) = consequence {
+                    test_literal_expression(&stmt.expression, Expected::IDENTIFIER("x"));
+                } else {
+                    panic!("Expected ExpressionStatement, got {:?}", consequence);
+                }
 
-        test_infix_expression(
-            &expr.condition,
-            Expected::IDENTIFIER("x"),
-            "<",
-            Expected::IDENTIFIER("y"),
-        );
-
-        let consequence = expr.consequence.statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
-
-        test_literal_expression(&consequence.expression, Expected::IDENTIFIER("x"));
-
-        let alternative = expr.alternative.as_ref().unwrap().statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
-
-        test_literal_expression(&alternative.expression, Expected::IDENTIFIER("y"));
+                let alternative = &expr.alternative.as_ref().unwrap().statements[0];
+                if let ast::Statement::Expression(stmt) = alternative {
+                    test_literal_expression(&stmt.expression, Expected::IDENTIFIER("y"));
+                } else {
+                    panic!("Expected ExpressionStatement, got {:?}", alternative);
+                }
+            } else {
+                panic!("Expected IfExpression, got {:?}", program.statements[0]);
+            }
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
     }
 
     #[test]
@@ -914,32 +909,32 @@ mod tests {
             "Program has wrong number of statements"
         );
 
-        let stmt = program.statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            if let ast::Expression::Function(expr) = &stmt.expression {
+                assert_eq!(expr.parameters.len(), 2);
+                assert_eq!(expr.parameters[0].value, "x");
+                assert_eq!(expr.parameters[1].value, "y");
 
-        let expr = stmt
-            .expression
-            .as_any()
-            .downcast_ref::<ast::FunctionLiteral>()
-            .unwrap();
-
-        assert_eq!(expr.parameters.len(), 2);
-        assert_eq!(expr.parameters[0].value, "x");
-        assert_eq!(expr.parameters[1].value, "y");
-
-        let body = expr.body.statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
-
-        test_infix_expression(
-            &body.expression,
-            Expected::IDENTIFIER("x"),
-            "+",
-            Expected::IDENTIFIER("y"),
-        );
+                let body = &expr.body.statements[0];
+                if let ast::Statement::Expression(stmt) = body {
+                    test_infix_expression(
+                        &stmt.expression,
+                        Expected::IDENTIFIER("x"),
+                        "+",
+                        Expected::IDENTIFIER("y"),
+                    );
+                } else {
+                    panic!("Expected ExpressionStatement, got {:?}", body);
+                }
+            } else {
+                panic!("Expected FunctionLiteral, got {:?}", program.statements[0]);
+            }
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
     }
 
     #[test]
@@ -965,23 +960,23 @@ mod tests {
                 "Program has wrong number of statements"
             );
 
-            let stmt = program.statements[0]
-                .as_any()
-                .downcast_ref::<ast::ExpressionStatement>()
-                .unwrap();
-
-            let expr = stmt
-                .expression
-                .as_any()
-                .downcast_ref::<ast::FunctionLiteral>()
-                .unwrap();
-
-            let params = expr
-                .parameters
-                .iter()
-                .map(|p| p.value.clone())
-                .collect::<Vec<String>>();
-            assert_eq!(params, expected);
+            if let ast::Statement::Expression(stmt) = &program.statements[0] {
+                if let ast::Expression::Function(expr) = &stmt.expression {
+                    let params = expr
+                        .parameters
+                        .iter()
+                        .map(|p| p.value.clone())
+                        .collect::<Vec<String>>();
+                    assert_eq!(params, expected);
+                } else {
+                    panic!("Expected FunctionLiteral, got {:?}", program.statements[0]);
+                }
+            } else {
+                panic!(
+                    "Expected ExpressionStatement, got {:?}",
+                    program.statements[0]
+                );
+            }
         }
     }
 
@@ -1003,33 +998,32 @@ mod tests {
             "Program has wrong number of statements"
         );
 
-        let stmt = program.statements[0]
-            .as_any()
-            .downcast_ref::<ast::ExpressionStatement>()
-            .unwrap();
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            if let ast::Expression::Call(call) = &stmt.expression {
+                test_identifier(&call.function, "add");
+                assert_eq!(call.arguments.len(), 3);
 
-        let expr = stmt
-            .expression
-            .as_any()
-            .downcast_ref::<ast::CallExpression>()
-            .unwrap();
-
-        test_identifier(&expr.function, "add");
-
-        assert_eq!(expr.arguments.len(), 3);
-
-        test_literal_expression(&expr.arguments[0], Expected::INTEGER(1));
-        test_infix_expression(
-            &expr.arguments[1],
-            Expected::INTEGER(2),
-            "*",
-            Expected::INTEGER(3),
-        );
-        test_infix_expression(
-            &expr.arguments[2],
-            Expected::INTEGER(4),
-            "+",
-            Expected::INTEGER(5),
-        );
+                test_literal_expression(&call.arguments[0], Expected::INTEGER(1));
+                test_infix_expression(
+                    &call.arguments[1],
+                    Expected::INTEGER(2),
+                    "*",
+                    Expected::INTEGER(3),
+                );
+                test_infix_expression(
+                    &call.arguments[2],
+                    Expected::INTEGER(4),
+                    "+",
+                    Expected::INTEGER(5),
+                );
+            } else {
+                panic!("Expected CallExpression, got {:?}", program.statements[0]);
+            }
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
     }
 }

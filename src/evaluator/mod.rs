@@ -2,82 +2,69 @@ use crate::ast;
 use crate::object::{self, Object};
 use anyhow::Result;
 use log::{debug, error};
-use std::any::TypeId;
 
-pub fn eval(node: &dyn ast::Node) -> Result<Object> {
+pub fn eval(node: ast::Node) -> Result<Object> {
     debug!("eval: {:?}", node);
-    match node.as_any().type_id() {
-        id if id == TypeId::of::<ast::Program>() => {
-            debug!("eval Program");
-            let program = node
-                .as_any()
-                .downcast_ref::<ast::Program>()
-                .ok_or_else(|| anyhow::anyhow!("Expected a Program, got {:?}", id))?;
-            program
-                .statements
-                .iter()
-                .map(|statement| eval(statement.as_node()))
-                .last()
-                .unwrap_or(Ok(Object::Null))
-        }
+    match node {
+        ast::Node::Program(program) => eval_program(program),
+        ast::Node::Statement(stmt) => eval_statement(stmt),
+        ast::Node::Expression(expr) => eval_expression(expr),
+    }
+}
 
-        id if id == TypeId::of::<ast::ExpressionStatement>() => {
-            debug!("eval ExpressionStatement");
-            let expression_statement = node
-                .as_any()
-                .downcast_ref::<ast::ExpressionStatement>()
-                .ok_or_else(|| anyhow::anyhow!("Expected a ExpressionStatement, got {:?}", id))?;
-            eval(expression_statement.expression.as_node())
-        }
+fn eval_program(program: ast::Program) -> Result<Object> {
+    program
+        .statements
+        .into_iter()
+        .map(|stmt| eval(stmt.into()))
+        .last()
+        .unwrap_or(Ok(Object::Null))
+}
 
-        id if id == TypeId::of::<ast::IntegerLiteral>() => {
-            debug!("eval IntegerLiteral");
-            let integer = node
-                .as_any()
-                .downcast_ref::<ast::IntegerLiteral>()
-                .ok_or_else(|| anyhow::anyhow!("Expected a IntegerLiteral, got {:?}", id))?;
-            Ok(Object::Integer(integer.value))
-        }
-
-        id if id == TypeId::of::<ast::Boolean>() => {
-            debug!("eval Boolean");
-            let boolean = node
-                .as_any()
-                .downcast_ref::<ast::Boolean>()
-                .ok_or_else(|| anyhow::anyhow!("Expected a Boolean, got {:?}", id))?;
-            Ok(native_bool_to_boolean_object(boolean.value))
-        }
-
-        id if id == TypeId::of::<ast::PrefixExpression>() => {
-            debug!("eval PrefixExpression");
-            let prefix_expression = node
-                .as_any()
-                .downcast_ref::<ast::PrefixExpression>()
-                .ok_or_else(|| anyhow::anyhow!("Expected a PrefixExpression, got {:?}", id))?;
-            let right = eval(prefix_expression.right.as_node())?;
-            match prefix_expression.operator.to_string().as_str() {
-                "!" => Ok(eval_bang_operator_expression(right)),
-                "-" => Ok(eval_minus_prefix_operator_expression(right)),
-                _ => {
-                    let err_msg = format!("unknown operator: {}", prefix_expression.operator);
-                    error!("{}", err_msg);
-                    Err(anyhow::anyhow!("{}", err_msg))
-                }
-            }
-        }
+fn eval_statement(stmt: ast::Statement) -> Result<Object> {
+    match stmt {
+        ast::Statement::Expression(expr) => eval(ast::Node::Expression(expr.expression)),
         _ => {
-            let err_msg = format!("unhandled node: {:?}", node);
-            error!("{}", err_msg);
-            Err(anyhow::anyhow!("{}", err_msg))
+            error!("eval_statement: {:?}", stmt);
+            Ok(object::NULL)
         }
     }
 }
 
-fn native_bool_to_boolean_object(input: bool) -> Object {
-    if input {
-        object::TRUE
-    } else {
-        object::FALSE
+fn eval_expression(expr: ast::Expression) -> Result<Object> {
+    match expr {
+        ast::Expression::Integer(literal) => Ok(Object::Integer(literal.value)),
+        ast::Expression::Boolean(literal) => eval_boolean(literal),
+        ast::Expression::Prefix(literal) => eval_prefix_expression(literal),
+        ast::Expression::Infix(literal) => eval_infix_expression(literal),
+        _ => {
+            error!("eval_expression: {:?}", expr);
+            Ok(object::NULL)
+        }
+    }
+}
+
+fn eval_boolean(expr: ast::Boolean) -> Result<Object> {
+    match expr.value {
+        true => Ok(object::TRUE),
+        false => Ok(object::FALSE),
+    }
+}
+
+fn eval_prefix_expression(expr: ast::PrefixExpression) -> Result<Object> {
+    match expr.operator.to_string().as_str() {
+        "!" => {
+            let right = eval_expression(*expr.right)?;
+            Ok(eval_bang_operator_expression(right))
+        }
+        "-" => {
+            let right = eval_expression(*expr.right)?;
+            Ok(eval_minus_prefix_operator_expression(right))
+        }
+        _ => {
+            error!("eval_prefix_expression: {:?}", expr);
+            Ok(object::NULL)
+        }
     }
 }
 
@@ -97,6 +84,35 @@ fn eval_minus_prefix_operator_expression(right: Object) -> Object {
     }
 }
 
+fn eval_infix_expression(expr: ast::InfixExpression) -> Result<Object> {
+    let left = eval_expression(*expr.left)?;
+    let right = eval_expression(*expr.right)?;
+
+    match (&left, &right) {
+        (Object::Integer(left), Object::Integer(right)) => match expr.operator.to_string().as_str()
+        {
+            "+" => Ok(Object::Integer(left + right)),
+            "-" => Ok(Object::Integer(left - right)),
+            "*" => Ok(Object::Integer(left * right)),
+            "/" => Ok(Object::Integer(left / right)),
+            _ => {
+                error!(
+                    "Invalid operator '{:?}' for integers",
+                    expr.operator.to_string()
+                );
+                Ok(object::NULL)
+            }
+        },
+        _ => {
+            error!(
+                "Invalid infix expression: left={:?}, right={:?}",
+                left, right
+            );
+            Ok(object::NULL)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,15 +129,7 @@ mod tests {
         let mut l = Lexer::new(input);
         let mut p = Parser::new(&mut l);
         let program = p.parse_program().unwrap();
-        eval(&program).unwrap()
-    }
-
-    #[test]
-    fn test_natvie_bool_to_boolean_object() {
-        init();
-        debug!("test_natvie_bool_to_boolean_object");
-        assert_eq!(native_bool_to_boolean_object(true), object::TRUE);
-        assert_eq!(native_bool_to_boolean_object(false), object::FALSE);
+        eval(program.into()).unwrap()
     }
 
     #[test]
@@ -133,17 +141,17 @@ mod tests {
             ("10", 10),
             ("-10", -10),
             ("-5", -5),
-            // ("5 + 5 + 5 + 5 - 10", 10),
-            // ("2 * 2 * 2 * 2 * 2", 32),
-            // ("-50 + 100 + -50", 0),
-            // ("5 * 2 + 10", 20),
-            // ("5 + 2 * 10", 25),
-            // ("20 + 2 * -10", 0),
-            // ("50 / 2 * 2 + 10", 60),
-            // ("2 * (5 + 10)", 30),
-            // ("3 * 3 * 3 + 10", 37),
-            // ("3 * (3 * 3) + 10", 37),
-            // ("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
+            ("5 + 5 + 5 + 5 - 10", 10),
+            ("2 * 2 * 2 * 2 * 2", 32),
+            ("-50 + 100 + -50", 0),
+            ("5 * 2 + 10", 20),
+            ("5 + 2 * 10", 25),
+            ("20 + 2 * -10", 0),
+            ("50 / 2 * 2 + 10", 60),
+            ("2 * (5 + 10)", 30),
+            ("3 * 3 * 3 + 10", 37),
+            ("3 * (3 * 3) + 10", 37),
+            ("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
         ];
 
         for (input, expected) in tests {

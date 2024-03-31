@@ -1,31 +1,138 @@
 use crate::token;
 use anyhow::{Context, Result};
-use std::any::Any;
 use std::fmt;
 
-/// The trait Node is implemented by all AST nodes.
-pub trait Node: Any + fmt::Display {
-    fn token_literal(&self) -> &str;
-    fn as_any(&self) -> &dyn Any;
-    fn as_node(&self) -> &dyn Node;
+pub enum Node {
+    Program(Program),
+    Statement(Statement),
+    Expression(Expression),
 }
 
-impl fmt::Debug for dyn Node {
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Node::Program(p) => write!(f, "{:?}", p),
+            Node::Statement(s) => write!(f, "{:?}", s),
+            Node::Expression(e) => write!(f, "{:?}", e),
+        }
+    }
+}
+
+pub enum Expression {
+    Identifier(Identifier),
+    Integer(IntegerLiteral),
+    Boolean(Boolean),
+    Prefix(PrefixExpression),
+    Infix(InfixExpression),
+    If(IfExpression),
+    Block(BlockStatement),
+    Function(FunctionLiteral),
+    Return(ReturnStatement),
+    Call(CallExpression),
+}
+
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Expression::Identifier(ident) => write!(f, "{}", ident),
+            Expression::Integer(int) => write!(f, "{}", int),
+            Expression::Boolean(b) => write!(f, "{}", b),
+            Expression::Prefix(p) => write!(f, "{}", p),
+            Expression::Infix(i) => write!(f, "{}", i),
+            Expression::If(i) => write!(f, "{}", i),
+            Expression::Block(b) => write!(f, "{}", b),
+            Expression::Function(func) => write!(f, "{}", func),
+            Expression::Return(r) => write!(f, "{}", r),
+            Expression::Call(c) => write!(f, "{}", c),
+        }
+    }
+}
+
+impl fmt::Debug for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Expression::Identifier(ident) => write!(f, "{:?}", ident),
+            Expression::Integer(int) => write!(f, "{:?}", int),
+            Expression::Boolean(b) => write!(f, "{:?}", b),
+            Expression::Prefix(p) => write!(f, "{:?}", p),
+            Expression::Infix(i) => write!(f, "{:?}", i),
+            Expression::If(i) => write!(f, "{:?}", i),
+            Expression::Block(b) => write!(f, "{:?}", b),
+            Expression::Function(func) => write!(f, "{:?}", func),
+            Expression::Return(r) => write!(f, "{:?}", r),
+            Expression::Call(c) => write!(f, "{:?}", c),
+        }
+    }
+}
+
+pub enum Statement {
+    Let(LetStatement),
+    Return(ReturnStatement),
+    Expression(ExpressionStatement),
+}
+
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Statement::Let(stmt) => write!(f, "{}", stmt),
+            Statement::Return(stmt) => write!(f, "{}", stmt),
+            Statement::Expression(stmt) => write!(f, "{}", stmt),
+        }
+    }
+}
+
+impl fmt::Debug for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Statement::Let(stmt) => write!(f, "{:?}", stmt),
+            Statement::Return(stmt) => write!(f, "{:?}", stmt),
+            Statement::Expression(stmt) => write!(f, "{:?}", stmt),
+        }
+    }
+}
+
+impl Statement {
+    pub fn token_literal(&self) -> &str {
+        match self {
+            Statement::Let(stmt) => stmt.token_literal(),
+            Statement::Return(stmt) => stmt.token_literal(),
+            Statement::Expression(stmt) => stmt.token_literal(),
+        }
+    }
+}
+
+/// The trait Node is implemented by all AST nodes.
+pub trait ASTNode: fmt::Display {
+    fn token_literal(&self) -> &str;
+}
+
+impl From<Program> for Node {
+    fn from(program: Program) -> Node {
+        Node::Program(program)
+    }
+}
+
+impl From<Statement> for Node {
+    fn from(statement: Statement) -> Node {
+        Node::Statement(statement)
+    }
+}
+
+impl From<Expression> for Node {
+    fn from(expression: Expression) -> Node {
+        Node::Expression(expression)
+    }
+}
+
+impl fmt::Debug for dyn ASTNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
     }
 }
 
-pub trait Statement: Node {
-    fn statement_node(&self);
-}
-
-pub trait Expression: Node {
-    fn expression_node(&self);
-}
-
+#[derive(Debug)]
 pub struct Program {
-    pub statements: Vec<Box<dyn Statement>>,
+    pub statements: Vec<Statement>,
 }
 
 impl Program {
@@ -42,20 +149,12 @@ impl Default for Program {
     }
 }
 
-impl Node for Program {
+impl ASTNode for Program {
     fn token_literal(&self) -> &str {
         if !self.statements.is_empty() {
             return self.statements[0].token_literal();
         }
         ""
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
     }
 }
 
@@ -69,18 +168,15 @@ impl fmt::Display for Program {
     }
 }
 
+#[derive(Debug)]
 pub struct LetStatement {
     pub token: token::Token,
     pub name: Identifier,
-    pub value: Box<dyn Expression>,
+    pub value: Expression,
 }
 
 impl LetStatement {
-    pub fn new(
-        token: token::Token,
-        name: token::Token,
-        value: Box<dyn Expression>,
-    ) -> LetStatement {
+    pub fn new(token: token::Token, name: token::Token, value: Expression) -> LetStatement {
         LetStatement {
             token,
             name: Identifier::new(name),
@@ -89,17 +185,15 @@ impl LetStatement {
     }
 }
 
-impl Node for LetStatement {
+impl From<LetStatement> for Statement {
+    fn from(stmt: LetStatement) -> Statement {
+        Statement::Let(stmt)
+    }
+}
+
+impl ASTNode for LetStatement {
     fn token_literal(&self) -> &str {
         self.token.value()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
     }
 }
 
@@ -115,10 +209,8 @@ impl fmt::Display for LetStatement {
         write!(f, "{}", out)
     }
 }
-impl Statement for LetStatement {
-    fn statement_node(&self) {}
-}
 
+#[derive(Debug)]
 pub struct Identifier {
     pub token: token::Token,
     pub value: String,
@@ -131,17 +223,15 @@ impl Identifier {
     }
 }
 
-impl Node for Identifier {
+impl ASTNode for Identifier {
     fn token_literal(&self) -> &str {
         &self.value
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<Identifier> for Expression {
+    fn from(ident: Identifier) -> Expression {
+        Expression::Identifier(ident)
     }
 }
 
@@ -149,10 +239,6 @@ impl fmt::Display for Identifier {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.value)
     }
-}
-
-impl Expression for Identifier {
-    fn expression_node(&self) {}
 }
 
 #[derive(Debug)]
@@ -171,17 +257,15 @@ impl IntegerLiteral {
     }
 }
 
-impl Node for IntegerLiteral {
+impl ASTNode for IntegerLiteral {
     fn token_literal(&self) -> &str {
         self.token.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<IntegerLiteral> for Expression {
+    fn from(int: IntegerLiteral) -> Expression {
+        Expression::Integer(int)
     }
 }
 
@@ -191,10 +275,7 @@ impl fmt::Display for IntegerLiteral {
     }
 }
 
-impl Expression for IntegerLiteral {
-    fn expression_node(&self) {}
-}
-
+#[derive(Debug)]
 pub struct Boolean {
     pub token: token::Token,
     pub value: bool,
@@ -207,17 +288,15 @@ impl Boolean {
     }
 }
 
-impl Node for Boolean {
+impl ASTNode for Boolean {
     fn token_literal(&self) -> &str {
         self.token.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<Boolean> for Expression {
+    fn from(b: Boolean) -> Expression {
+        Expression::Boolean(b)
     }
 }
 
@@ -227,32 +306,30 @@ impl fmt::Display for Boolean {
     }
 }
 
-impl Expression for Boolean {
-    fn expression_node(&self) {}
-}
-
+#[derive(Debug)]
 pub struct PrefixExpression {
     pub operator: token::Token,
-    pub right: Box<dyn Expression>,
+    pub right: Box<Expression>,
 }
 
 impl PrefixExpression {
-    pub fn new(operator: token::Token, right: Box<dyn Expression>) -> PrefixExpression {
-        PrefixExpression { operator, right }
+    pub fn new(operator: token::Token, right: Expression) -> PrefixExpression {
+        PrefixExpression {
+            operator,
+            right: Box::new(right),
+        }
     }
 }
 
-impl Node for PrefixExpression {
+impl ASTNode for PrefixExpression {
     fn token_literal(&self) -> &str {
         self.operator.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<PrefixExpression> for Expression {
+    fn from(prefix: PrefixExpression) -> Expression {
+        Expression::Prefix(prefix)
     }
 }
 
@@ -262,41 +339,32 @@ impl fmt::Display for PrefixExpression {
     }
 }
 
-impl Expression for PrefixExpression {
-    fn expression_node(&self) {}
-}
-
+#[derive(Debug)]
 pub struct InfixExpression {
-    pub left: Box<dyn Expression>,
+    pub left: Box<Expression>,
     pub operator: token::Token,
-    pub right: Box<dyn Expression>,
+    pub right: Box<Expression>,
 }
 
 impl InfixExpression {
-    pub fn new(
-        left: Box<dyn Expression>,
-        operator: token::Token,
-        right: Box<dyn Expression>,
-    ) -> InfixExpression {
+    pub fn new(left: Expression, operator: token::Token, right: Expression) -> InfixExpression {
         InfixExpression {
-            left,
+            left: Box::new(left),
             operator,
-            right,
+            right: Box::new(right),
         }
     }
 }
 
-impl Node for InfixExpression {
+impl ASTNode for InfixExpression {
     fn token_literal(&self) -> &str {
         self.operator.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<InfixExpression> for Expression {
+    fn from(infix: InfixExpression) -> Expression {
+        Expression::Infix(infix)
     }
 }
 
@@ -312,13 +380,10 @@ impl fmt::Display for InfixExpression {
     }
 }
 
-impl Expression for InfixExpression {
-    fn expression_node(&self) {}
-}
-
+#[derive(Debug)]
 pub struct IfExpression {
     pub token: token::Token,
-    pub condition: Box<dyn Expression>,
+    pub condition: Box<Expression>,
     pub consequence: BlockStatement,
     pub alternative: Option<BlockStatement>,
 }
@@ -326,30 +391,28 @@ pub struct IfExpression {
 impl IfExpression {
     pub fn new(
         token: token::Token,
-        condition: Box<dyn Expression>,
+        condition: Expression,
         consequence: BlockStatement,
         alternative: Option<BlockStatement>,
     ) -> IfExpression {
         IfExpression {
             token,
-            condition,
+            condition: Box::new(condition),
             consequence,
             alternative,
         }
     }
 }
 
-impl Node for IfExpression {
+impl ASTNode for IfExpression {
     fn token_literal(&self) -> &str {
         self.token.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<IfExpression> for Expression {
+    fn from(if_expr: IfExpression) -> Expression {
+        Expression::If(if_expr)
     }
 }
 
@@ -369,13 +432,11 @@ impl fmt::Display for IfExpression {
         write!(f, "{}", out)
     }
 }
-impl Expression for IfExpression {
-    fn expression_node(&self) {}
-}
 
+#[derive(Debug)]
 pub struct BlockStatement {
     pub token: token::Token,
-    pub statements: Vec<Box<dyn Statement>>,
+    pub statements: Vec<Statement>,
 }
 
 impl BlockStatement {
@@ -387,17 +448,15 @@ impl BlockStatement {
     }
 }
 
-impl Node for BlockStatement {
+impl ASTNode for BlockStatement {
     fn token_literal(&self) -> &str {
         self.token.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<BlockStatement> for Expression {
+    fn from(block: BlockStatement) -> Expression {
+        Expression::Block(block)
     }
 }
 
@@ -410,10 +469,8 @@ impl fmt::Display for BlockStatement {
         write!(f, "{}", out)
     }
 }
-impl Statement for BlockStatement {
-    fn statement_node(&self) {}
-}
 
+#[derive(Debug)]
 pub struct FunctionLiteral {
     pub token: token::Token,
     pub parameters: Vec<Identifier>,
@@ -434,17 +491,15 @@ impl FunctionLiteral {
     }
 }
 
-impl Node for FunctionLiteral {
+impl ASTNode for FunctionLiteral {
     fn token_literal(&self) -> &str {
         self.token.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<FunctionLiteral> for Expression {
+    fn from(func: FunctionLiteral) -> Expression {
+        Expression::Function(func)
     }
 }
 
@@ -463,46 +518,37 @@ impl fmt::Display for FunctionLiteral {
         )
     }
 }
-impl Expression for FunctionLiteral {
-    fn expression_node(&self) {}
-}
 
-pub struct ReturnStatement {
-    pub token: token::Token,
-    pub return_value: Box<dyn Expression>,
-}
-
+#[derive(Debug)]
 pub struct CallExpression {
     pub token: token::Token,
-    pub function: Box<dyn Expression>,
-    pub arguments: Vec<Box<dyn Expression>>,
+    pub function: Box<Expression>,
+    pub arguments: Vec<Expression>,
 }
 
 impl CallExpression {
     pub fn new(
         token: token::Token,
-        function: Box<dyn Expression>,
-        arguments: Vec<Box<dyn Expression>>,
+        function: Expression,
+        arguments: Vec<Expression>,
     ) -> CallExpression {
         CallExpression {
             token,
-            function,
+            function: Box::new(function),
             arguments,
         }
     }
 }
 
-impl Node for CallExpression {
+impl ASTNode for CallExpression {
     fn token_literal(&self) -> &str {
         self.token.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<CallExpression> for Expression {
+    fn from(call: CallExpression) -> Expression {
+        Expression::Call(call)
     }
 }
 
@@ -520,30 +566,31 @@ impl fmt::Display for CallExpression {
         )
     }
 }
-impl Expression for CallExpression {
-    fn expression_node(&self) {}
+
+#[derive(Debug)]
+pub struct ReturnStatement {
+    pub token: token::Token,
+    pub return_value: Box<Expression>,
 }
 
 impl ReturnStatement {
-    pub fn new(token: token::Token, return_value: Box<dyn Expression>) -> ReturnStatement {
+    pub fn new(token: token::Token, return_value: Expression) -> ReturnStatement {
         ReturnStatement {
             token,
-            return_value,
+            return_value: Box::new(return_value),
         }
     }
 }
 
-impl Node for ReturnStatement {
+impl ASTNode for ReturnStatement {
     fn token_literal(&self) -> &str {
         self.token.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<ReturnStatement> for Statement {
+    fn from(stmt: ReturnStatement) -> Statement {
+        Statement::Return(stmt)
     }
 }
 
@@ -552,32 +599,28 @@ impl fmt::Display for ReturnStatement {
         write!(f, "{} {};", self.token_literal(), self.return_value)
     }
 }
-impl Statement for ReturnStatement {
-    fn statement_node(&self) {}
-}
 
+#[derive(Debug)]
 pub struct ExpressionStatement {
     pub token: token::Token,
-    pub expression: Box<dyn Expression>,
+    pub expression: Expression,
 }
 
 impl ExpressionStatement {
-    pub fn new(token: token::Token, expression: Box<dyn Expression>) -> ExpressionStatement {
+    pub fn new(token: token::Token, expression: Expression) -> ExpressionStatement {
         ExpressionStatement { token, expression }
     }
 }
 
-impl Node for ExpressionStatement {
+impl ASTNode for ExpressionStatement {
     fn token_literal(&self) -> &str {
         self.token.value()
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_node(&self) -> &dyn Node {
-        self
+impl From<ExpressionStatement> for Statement {
+    fn from(stmt: ExpressionStatement) -> Statement {
+        Statement::Expression(stmt)
     }
 }
 
@@ -585,10 +628,6 @@ impl fmt::Display for ExpressionStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.expression)
     }
-}
-
-impl Statement for ExpressionStatement {
-    fn statement_node(&self) {}
 }
 
 #[cfg(test)]
@@ -599,10 +638,10 @@ mod tests {
     #[test]
     fn test_string() {
         let program = Program {
-            statements: vec![Box::new(LetStatement {
+            statements: vec![Statement::Let(LetStatement {
                 token: token::Token::LET,
                 name: Identifier::new(token::Token::IDENT("myVar".to_string())),
-                value: Box::new(Identifier::new(token::Token::IDENT(
+                value: Expression::Identifier(Identifier::new(token::Token::IDENT(
                     "anotherVar".to_string(),
                 ))),
             })],
