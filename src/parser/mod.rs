@@ -791,11 +791,11 @@ mod tests {
 
             assert!(p.errors.is_empty(), "Parser has errors");
             assert_eq!(
-                program.string(),
+                program.to_string(),
                 expected,
                 "Expected {}, got {}",
                 expected,
-                program.string()
+                program.to_string()
             );
         }
     }

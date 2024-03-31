@@ -4,16 +4,15 @@ use std::any::Any;
 use std::fmt;
 
 /// The trait Node is implemented by all AST nodes.
-pub trait Node: Any {
+pub trait Node: Any + fmt::Display {
     fn token_literal(&self) -> &str;
-    fn string(&self) -> String;
     fn as_any(&self) -> &dyn Any;
     fn as_node(&self) -> &dyn Node;
 }
 
 impl fmt::Debug for dyn Node {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.string())
+        write!(f, "{}", self)
     }
 }
 
@@ -51,20 +50,22 @@ impl Node for Program {
         ""
     }
 
-    fn string(&self) -> String {
-        let mut out = String::new();
-        for statement in &self.statements {
-            out.push_str(&statement.string());
-        }
-        out
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_node(&self) -> &dyn Node {
         self
+    }
+}
+
+impl fmt::Display for Program {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut out = String::new();
+        for statement in &self.statements {
+            out.push_str(&statement.to_string());
+        }
+        write!(f, "{}", out)
     }
 }
 
@@ -93,17 +94,6 @@ impl Node for LetStatement {
         self.token.value()
     }
 
-    fn string(&self) -> String {
-        let mut out = String::new();
-        out.push_str(self.token_literal());
-        out.push(' ');
-        out.push_str(&self.name.string());
-        out.push_str(" = ");
-        out.push_str(&self.value.string());
-        out.push(';');
-        out
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -113,6 +103,18 @@ impl Node for LetStatement {
     }
 }
 
+impl fmt::Display for LetStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut out = String::new();
+        out.push_str(self.token_literal());
+        out.push(' ');
+        out.push_str(&self.name.to_string());
+        out.push_str(" = ");
+        out.push_str(&self.value.to_string());
+        out.push(';');
+        write!(f, "{}", out)
+    }
+}
 impl Statement for LetStatement {
     fn statement_node(&self) {}
 }
@@ -134,16 +136,18 @@ impl Node for Identifier {
         &self.value
     }
 
-    fn string(&self) -> String {
-        self.value.clone()
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_node(&self) -> &dyn Node {
         self
+    }
+}
+
+impl fmt::Display for Identifier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
@@ -172,16 +176,18 @@ impl Node for IntegerLiteral {
         self.token.value()
     }
 
-    fn string(&self) -> String {
-        self.value.to_string()
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_node(&self) -> &dyn Node {
         self
+    }
+}
+
+impl fmt::Display for IntegerLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
@@ -206,16 +212,18 @@ impl Node for Boolean {
         self.token.value()
     }
 
-    fn string(&self) -> String {
-        self.token.value().to_string()
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_node(&self) -> &dyn Node {
         self
+    }
+}
+
+impl fmt::Display for Boolean {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
@@ -239,21 +247,18 @@ impl Node for PrefixExpression {
         self.operator.value()
     }
 
-    fn string(&self) -> String {
-        let mut out = String::new();
-        out.push('(');
-        out.push_str(self.operator.value());
-        out.push_str(&self.right.string());
-        out.push(')');
-        out
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_node(&self) -> &dyn Node {
         self
+    }
+}
+
+impl fmt::Display for PrefixExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}{})", self.operator.value(), self.right)
     }
 }
 
@@ -286,24 +291,24 @@ impl Node for InfixExpression {
         self.operator.value()
     }
 
-    fn string(&self) -> String {
-        let mut out = String::new();
-        out.push('(');
-        out.push_str(&self.left.string());
-        out.push(' ');
-        out.push_str(self.operator.value());
-        out.push(' ');
-        out.push_str(&self.right.string());
-        out.push(')');
-        out
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_node(&self) -> &dyn Node {
         self
+    }
+}
+
+impl fmt::Display for InfixExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "({} {} {})",
+            self.left,
+            self.operator.value(),
+            self.right
+        )
     }
 }
 
@@ -339,21 +344,6 @@ impl Node for IfExpression {
         self.token.value()
     }
 
-    fn string(&self) -> String {
-        let mut out = String::new();
-        out.push_str("if");
-        out.push(' ');
-        out.push('(');
-        out.push_str(&self.condition.string());
-        out.push(')');
-        out.push_str(&self.consequence.string());
-        if let Some(alternative) = &self.alternative {
-            out.push_str("else");
-            out.push_str(&alternative.string());
-        }
-        out
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -363,6 +353,22 @@ impl Node for IfExpression {
     }
 }
 
+impl fmt::Display for IfExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut out = String::new();
+        out.push_str("if");
+        out.push(' ');
+        out.push('(');
+        out.push_str(&self.condition.to_string());
+        out.push(')');
+        out.push_str(&self.consequence.to_string());
+        if let Some(alternative) = &self.alternative {
+            out.push_str("else");
+            out.push_str(&alternative.to_string());
+        }
+        write!(f, "{}", out)
+    }
+}
 impl Expression for IfExpression {
     fn expression_node(&self) {}
 }
@@ -386,14 +392,6 @@ impl Node for BlockStatement {
         self.token.value()
     }
 
-    fn string(&self) -> String {
-        let mut out = String::new();
-        for statement in &self.statements {
-            out.push_str(&statement.string());
-        }
-        out
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -403,6 +401,15 @@ impl Node for BlockStatement {
     }
 }
 
+impl fmt::Display for BlockStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut out = String::new();
+        for statement in &self.statements {
+            out.push_str(statement.to_string().as_str());
+        }
+        write!(f, "{}", out)
+    }
+}
 impl Statement for BlockStatement {
     fn statement_node(&self) {}
 }
@@ -432,22 +439,6 @@ impl Node for FunctionLiteral {
         self.token.value()
     }
 
-    fn string(&self) -> String {
-        let mut out = String::new();
-        out.push_str(self.token_literal());
-        out.push('(');
-        let params_str = self
-            .parameters
-            .iter()
-            .map(|param| param.string())
-            .collect::<Vec<String>>()
-            .join(", ");
-        out.push_str(&params_str);
-        out.push_str(") ");
-        out.push_str(&self.body.string());
-        out
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -457,6 +448,21 @@ impl Node for FunctionLiteral {
     }
 }
 
+impl fmt::Display for FunctionLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}({}) {}",
+            self.token_literal(),
+            self.parameters
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<String>>()
+                .join(", "),
+            self.body
+        )
+    }
+}
 impl Expression for FunctionLiteral {
     fn expression_node(&self) {}
 }
@@ -491,21 +497,6 @@ impl Node for CallExpression {
         self.token.value()
     }
 
-    fn string(&self) -> String {
-        let mut out = String::new();
-        out.push_str(&self.function.string());
-        out.push('(');
-        let args_str = self
-            .arguments
-            .iter()
-            .map(|arg| arg.string())
-            .collect::<Vec<String>>()
-            .join(", ");
-        out.push_str(&args_str);
-        out.push(')');
-        out
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -515,6 +506,20 @@ impl Node for CallExpression {
     }
 }
 
+impl fmt::Display for CallExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}({})",
+            self.function,
+            self.arguments
+                .iter()
+                .map(|arg| arg.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
+    }
+}
 impl Expression for CallExpression {
     fn expression_node(&self) {}
 }
@@ -533,15 +538,6 @@ impl Node for ReturnStatement {
         self.token.value()
     }
 
-    fn string(&self) -> String {
-        let mut out = String::new();
-        out.push_str(self.token_literal());
-        out.push(' ');
-        out.push_str(&self.return_value.string());
-        out.push(';');
-        out
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -551,6 +547,11 @@ impl Node for ReturnStatement {
     }
 }
 
+impl fmt::Display for ReturnStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {};", self.token_literal(), self.return_value)
+    }
+}
 impl Statement for ReturnStatement {
     fn statement_node(&self) {}
 }
@@ -571,16 +572,18 @@ impl Node for ExpressionStatement {
         self.token.value()
     }
 
-    fn string(&self) -> String {
-        self.expression.string()
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_node(&self) -> &dyn Node {
         self
+    }
+}
+
+impl fmt::Display for ExpressionStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.expression)
     }
 }
 
@@ -605,6 +608,6 @@ mod tests {
             })],
         };
 
-        assert_eq!(program.string(), "let myVar = anotherVar;");
+        assert_eq!(program.to_string(), "let myVar = anotherVar;");
     }
 }

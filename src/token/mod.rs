@@ -1,4 +1,5 @@
 use crate::parser::Precedence;
+use std::fmt;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
@@ -35,6 +36,12 @@ pub enum Token {
     IF,
     ELSE,
     RETURN,
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value())
+    }
 }
 
 impl Token {
