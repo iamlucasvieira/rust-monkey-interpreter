@@ -1,28 +1,38 @@
-use crate::ast::Node;
+use crate::evaluator;
 use crate::lexer;
 use crate::parser;
-use std::io::{BufRead, BufReader, Read, Result, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 
 const PROMPT: &str = ">> ";
 
-pub fn start(reader: &mut dyn Read, writer: &mut dyn Write) -> Result<()> {
-    let mut buff = BufReader::new(reader);
+pub fn start<R: Read, W: Write>(reader: R, writer: &mut W) -> io::Result<()> {
+    let mut reader = BufReader::new(reader);
     loop {
         write!(writer, "{}", PROMPT)?;
         writer.flush()?;
 
         let mut line = String::new();
-        match buff.read_line(&mut line) {
-            Ok(0) => return Ok(()),
-            Ok(_) => {}
-            Err(e) => return Err(e),
+        if reader.read_line(&mut line)? == 0 {
+            break;
         }
 
-        let mut l = lexer::Lexer::new(&line);
-        let mut p = parser::Parser::new(&mut l);
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
 
-        if let Ok(p) = p.parse_program() {
-            writeln!(writer, "{}", p.string())?;
+        let mut lexer = lexer::Lexer::new(&line);
+        let mut parser = parser::Parser::new(&mut lexer);
+
+        match parser.parse_program() {
+            Ok(program) => match evaluator::eval(&program) {
+                Ok(evaluated) => {
+                    writeln!(writer, "{}", evaluated)?;
+                }
+                Err(_) => {}
+            },
+            Err(_) => {}
         }
     }
+    Ok(())
 }

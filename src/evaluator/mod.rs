@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::object::Object;
 use anyhow::Result;
-use log::debug;
+use log::{debug, error};
 use std::any::TypeId;
 
 pub fn eval(node: &dyn ast::Node) -> Result<Object> {
@@ -38,7 +38,11 @@ pub fn eval(node: &dyn ast::Node) -> Result<Object> {
                 .ok_or_else(|| anyhow::anyhow!("Expected a IntegerLiteral, got {:?}", id))?;
             Ok(Object::Integer(integer.value))
         }
-        _ => Err(anyhow::anyhow!("unhandled node: {:?}", node)),
+        _ => {
+            let err_msg = format!("unhandled node: {:?}", node);
+            error!("{}", err_msg);
+            Err(anyhow::anyhow!("{}", err_msg))
+        }
     }
 }
 
