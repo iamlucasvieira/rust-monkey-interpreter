@@ -97,7 +97,7 @@ fn eval_infix_expression(expr: ast::InfixExpression) -> Result<Object> {
             "/" => Ok(Object::Integer(left / right)),
             _ => {
                 error!(
-                    "Invalid operator '{:?}' for integers",
+                    "Invalid operator {:?} for integers",
                     expr.operator.to_string()
                 );
                 Ok(object::NULL)
