@@ -1,21 +1,28 @@
 use crate::token;
 use anyhow::{Context, Result};
 use std::any::Any;
+use std::fmt;
 
 /// The trait Node is implemented by all AST nodes.
-pub trait Node {
+pub trait Node: Any {
     fn token_literal(&self) -> &str;
     fn string(&self) -> String;
+    fn as_any(&self) -> &dyn Any;
+    fn as_node(&self) -> &dyn Node;
 }
 
-pub trait Statement: Node + Any {
+impl fmt::Debug for dyn Node {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.string())
+    }
+}
+
+pub trait Statement: Node {
     fn statement_node(&self);
-    fn as_any(&self) -> &dyn Any;
 }
 
-pub trait Expression: Node + Any {
+pub trait Expression: Node {
     fn expression_node(&self);
-    fn as_any(&self) -> &dyn Any;
 }
 
 pub struct Program {
@@ -50,6 +57,14 @@ impl Node for Program {
             out.push_str(&statement.string());
         }
         out
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
     }
 }
 
@@ -88,13 +103,18 @@ impl Node for LetStatement {
         out.push(';');
         out
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Statement for LetStatement {
     fn statement_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct Identifier {
@@ -117,13 +137,18 @@ impl Node for Identifier {
     fn string(&self) -> String {
         self.value.clone()
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Expression for Identifier {
     fn expression_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 #[derive(Debug)]
@@ -150,13 +175,18 @@ impl Node for IntegerLiteral {
     fn string(&self) -> String {
         self.value.to_string()
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Expression for IntegerLiteral {
     fn expression_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct Boolean {
@@ -179,13 +209,18 @@ impl Node for Boolean {
     fn string(&self) -> String {
         self.token.value().to_string()
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Expression for Boolean {
     fn expression_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct PrefixExpression {
@@ -212,13 +247,18 @@ impl Node for PrefixExpression {
         out.push(')');
         out
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Expression for PrefixExpression {
     fn expression_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct InfixExpression {
@@ -257,13 +297,18 @@ impl Node for InfixExpression {
         out.push(')');
         out
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Expression for InfixExpression {
     fn expression_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct IfExpression {
@@ -308,13 +353,18 @@ impl Node for IfExpression {
         }
         out
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Expression for IfExpression {
     fn expression_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct BlockStatement {
@@ -343,13 +393,18 @@ impl Node for BlockStatement {
         }
         out
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Statement for BlockStatement {
     fn statement_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct FunctionLiteral {
@@ -392,13 +447,18 @@ impl Node for FunctionLiteral {
         out.push_str(&self.body.string());
         out
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Expression for FunctionLiteral {
     fn expression_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct ReturnStatement {
@@ -445,13 +505,18 @@ impl Node for CallExpression {
         out.push(')');
         out
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Expression for CallExpression {
     fn expression_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 impl ReturnStatement {
@@ -476,13 +541,18 @@ impl Node for ReturnStatement {
         out.push(';');
         out
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Statement for ReturnStatement {
     fn statement_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 pub struct ExpressionStatement {
@@ -504,13 +574,18 @@ impl Node for ExpressionStatement {
     fn string(&self) -> String {
         self.expression.string()
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_node(&self) -> &dyn Node {
+        self
+    }
 }
 
 impl Statement for ExpressionStatement {
     fn statement_node(&self) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 #[cfg(test)]
