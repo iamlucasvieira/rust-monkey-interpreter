@@ -1,7 +1,10 @@
-use anyhow::Result;
 use std::fmt;
 
-#[derive(Debug)]
+pub const TRUE: Object = Object::Boolean(true);
+pub const FALSE: Object = Object::Boolean(false);
+pub const NULL: Object = Object::Null;
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),
@@ -39,7 +42,7 @@ pub mod tests {
         }
     }
 
-    fn test_boolean_object(obj: Object, expected: bool) {
+    pub fn test_boolean_object(obj: Object, expected: bool) {
         match obj {
             Object::Boolean(value) => assert_eq!(value, expected),
             _ => panic!("object is not Boolean. got={}", obj.object_type()),
