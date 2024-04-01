@@ -32,16 +32,52 @@ fn eval_statement(stmt: ast::Statement) -> Result<Object> {
     }
 }
 
+fn eval_statements(stmts: Vec<ast::Statement>) -> Result<Object> {
+    let mut result = Object::Null;
+
+    for stmt in stmts {
+        result = eval(stmt.into())?;
+        if let Object::Return(value) = result {
+            return Ok(*value);
+        }
+    }
+    Ok(result)
+}
+
 fn eval_expression(expr: ast::Expression) -> Result<Object> {
     match expr {
         ast::Expression::Integer(literal) => Ok(Object::Integer(literal.value)),
         ast::Expression::Boolean(literal) => eval_boolean(literal),
         ast::Expression::Prefix(literal) => eval_prefix_expression(literal),
         ast::Expression::Infix(literal) => eval_infix_expression(literal),
+        ast::Expression::Block(literal) => eval_statements(literal.statements),
+        ast::Expression::If(literal) => eval_if_expression(literal),
         _ => {
             error!("eval_expression: {:?}", expr);
             Ok(object::NULL)
         }
+    }
+}
+
+fn eval_if_expression(expr: ast::IfExpression) -> Result<Object> {
+    let condition = eval((*expr.condition).into())?;
+    if is_truthy(condition) {
+        let consequence: ast::Expression = expr.consequence.into();
+        eval(consequence.into())
+    } else if let Some(alternative) = expr.alternative {
+        let alternative: ast::Expression = alternative.into();
+        eval(alternative.into())
+    } else {
+        Ok(object::NULL)
+    }
+}
+
+fn is_truthy(obj: Object) -> bool {
+    match obj {
+        object::NULL => false,
+        object::TRUE => true,
+        object::FALSE => false,
+        _ => true,
     }
 }
 
@@ -126,7 +162,7 @@ fn eval_integer_infix_expression(left: &i64, operator: &str, right: &i64) -> Res
 mod tests {
     use super::*;
     use crate::lexer::Lexer;
-    use crate::object::tests::{test_boolean_object, test_integer_object};
+    use crate::object::tests::{test_boolean_object, test_integer_object, test_null_object};
     use crate::parser::Parser;
     use log::debug;
 
@@ -217,6 +253,29 @@ mod tests {
         for (input, expected) in tests {
             let evaluated = test_eval(input);
             test_boolean_object(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_if_else() {
+        init();
+        debug!("test_id_else");
+        let tests = vec![
+            ("if (true) { 10 }", Some(10)),
+            ("if (false) { 10 }", None),
+            ("if (1) { 10 }", Some(10)),
+            ("if (1 < 2) { 10 }", Some(10)),
+            ("if (1 > 2) { 10 }", None),
+            ("if (1 > 2) { 10 } else { 20 }", Some(20)),
+            ("if (1 < 2) { 10 } else { 20 }", Some(10)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            match expected {
+                Some(value) => test_integer_object(evaluated, value),
+                None => test_null_object(evaluated),
+            }
         }
     }
 }

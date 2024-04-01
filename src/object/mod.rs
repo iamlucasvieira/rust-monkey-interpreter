@@ -9,6 +9,7 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     Null,
+    Return(Box<Object>),
 }
 
 impl Object {
@@ -17,6 +18,7 @@ impl Object {
             Object::Integer(_) => "INTEGER",
             Object::Boolean(_) => "BOOLEAN",
             Object::Null => "NULL",
+            Object::Return(_) => "RETURN",
         }
     }
 
@@ -34,6 +36,7 @@ impl fmt::Display for Object {
             Object::Integer(value) => write!(f, "{}", value),
             Object::Boolean(value) => write!(f, "{}", value),
             Object::Null => write!(f, "null"),
+            Object::Return(value) => write!(f, "{}", value),
         }
     }
 }
@@ -53,6 +56,13 @@ pub mod tests {
         match obj {
             Object::Boolean(value) => assert_eq!(value, expected),
             _ => panic!("object is not Boolean. got={}", obj.object_type()),
+        }
+    }
+
+    pub fn test_null_object(obj: Object) {
+        match obj {
+            Object::Null => (),
+            _ => panic!("object is not Null. got={}", obj.object_type()),
         }
     }
 
@@ -83,8 +93,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_null_object() {
-        let obj = Object::Null;
-        assert_eq!(obj.object_type(), "NULL");
+    fn test_null_objects() {
+        test_null_object(Object::Null);
     }
 }
