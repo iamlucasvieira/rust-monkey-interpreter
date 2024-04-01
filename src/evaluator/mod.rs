@@ -14,28 +14,9 @@ pub fn eval(node: ast::Node) -> Result<Object> {
 }
 
 fn eval_program(program: ast::Program) -> Result<Object> {
-    program
-        .statements
-        .into_iter()
-        .map(|stmt| eval(stmt.into()))
-        .last()
-        .unwrap_or(Ok(Object::Null))
-}
-
-fn eval_statement(stmt: ast::Statement) -> Result<Object> {
-    match stmt {
-        ast::Statement::Expression(expr) => eval(ast::Node::Expression(expr.expression)),
-        _ => {
-            error!("eval_statement: {:?}", stmt);
-            Ok(object::NULL)
-        }
-    }
-}
-
-fn eval_statements(stmts: Vec<ast::Statement>) -> Result<Object> {
     let mut result = Object::Null;
 
-    for stmt in stmts {
+    for stmt in program.statements {
         result = eval(stmt.into())?;
         if let Object::Return(value) = result {
             return Ok(*value);
@@ -44,19 +25,48 @@ fn eval_statements(stmts: Vec<ast::Statement>) -> Result<Object> {
     Ok(result)
 }
 
+fn eval_statement(stmt: ast::Statement) -> Result<Object> {
+    match stmt {
+        ast::Statement::Expression(expr) => eval(ast::Node::Expression(expr.expression)),
+        ast::Statement::Return(expr) => eval(ast::Node::Expression(ast::Expression::Return(expr))),
+        _ => {
+            error!("eval_statement: {:?}", stmt);
+            Ok(object::NULL)
+        }
+    }
+}
+
 fn eval_expression(expr: ast::Expression) -> Result<Object> {
     match expr {
         ast::Expression::Integer(literal) => Ok(Object::Integer(literal.value)),
         ast::Expression::Boolean(literal) => eval_boolean(literal),
         ast::Expression::Prefix(literal) => eval_prefix_expression(literal),
         ast::Expression::Infix(literal) => eval_infix_expression(literal),
-        ast::Expression::Block(literal) => eval_statements(literal.statements),
+        ast::Expression::Block(literal) => eval_block_statement(literal),
         ast::Expression::If(literal) => eval_if_expression(literal),
+        ast::Expression::Return(literal) => eval_return_expression(literal),
         _ => {
             error!("eval_expression: {:?}", expr);
             Ok(object::NULL)
         }
     }
+}
+
+fn eval_block_statement(stmt: ast::BlockStatement) -> Result<Object> {
+    let mut result = Object::Null;
+
+    for stmt in stmt.statements {
+        result = eval(stmt.into())?;
+        if let Object::Return(_) = result {
+            return Ok(result);
+        }
+    }
+    Ok(result)
+}
+
+fn eval_return_expression(expr: ast::ReturnStatement) -> Result<Object> {
+    let value = eval((*expr.return_value).into())?;
+    Ok(Object::Return(Box::new(value)))
 }
 
 fn eval_if_expression(expr: ast::IfExpression) -> Result<Object> {
@@ -276,6 +286,32 @@ mod tests {
                 Some(value) => test_integer_object(evaluated, value),
                 None => test_null_object(evaluated),
             }
+        }
+    }
+
+    #[test]
+    fn test_return_statement() {
+        init();
+        debug!("test_return_statement");
+        let tests = vec![
+            ("return 10;", 10),
+            ("return 10; 9;", 10),
+            ("return 2 * 5; 9;", 10),
+            ("9; return 2 * 5; 9;", 10),
+            (
+                "if (10 > 1) {
+                    if (10 > 1) {
+                        return 10;
+                    }
+                    return 1;
+                }",
+                10,
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input);
+            test_integer_object(evaluated, expected);
         }
     }
 }
