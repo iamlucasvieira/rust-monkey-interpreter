@@ -19,6 +19,13 @@ impl Object {
             Object::Null => "NULL",
         }
     }
+
+    pub fn from_bool(value: bool) -> Object {
+        match value {
+            true => TRUE,
+            false => FALSE,
+        }
+    }
 }
 
 impl fmt::Display for Object {

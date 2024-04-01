@@ -1,5 +1,6 @@
 use crate::ast;
 use crate::object::{self, Object};
+use crate::token;
 use anyhow::Result;
 use log::{debug, error};
 
@@ -45,21 +46,18 @@ fn eval_expression(expr: ast::Expression) -> Result<Object> {
 }
 
 fn eval_boolean(expr: ast::Boolean) -> Result<Object> {
-    match expr.value {
-        true => Ok(object::TRUE),
-        false => Ok(object::FALSE),
-    }
+    Ok(object::Object::from_bool(expr.value))
 }
 
 fn eval_prefix_expression(expr: ast::PrefixExpression) -> Result<Object> {
     match expr.operator.to_string().as_str() {
         "!" => {
             let right = eval_expression(*expr.right)?;
-            Ok(eval_bang_operator_expression(right))
+            eval_bang_operator_expression(right)
         }
         "-" => {
             let right = eval_expression(*expr.right)?;
-            Ok(eval_minus_prefix_operator_expression(right))
+            eval_minus_prefix_operator_expression(right)
         }
         _ => {
             error!("eval_prefix_expression: {:?}", expr);
@@ -68,19 +66,19 @@ fn eval_prefix_expression(expr: ast::PrefixExpression) -> Result<Object> {
     }
 }
 
-fn eval_bang_operator_expression(right: Object) -> Object {
+fn eval_bang_operator_expression(right: Object) -> Result<Object> {
     match right {
-        object::TRUE => object::FALSE,
-        object::FALSE => object::TRUE,
-        object::NULL => object::TRUE,
-        _ => object::FALSE,
+        object::TRUE => Ok(object::FALSE),
+        object::FALSE => Ok(object::TRUE),
+        object::NULL => Ok(object::TRUE),
+        _ => Ok(object::FALSE),
     }
 }
 
-fn eval_minus_prefix_operator_expression(right: Object) -> Object {
+fn eval_minus_prefix_operator_expression(right: Object) -> Result<Object> {
     match right {
-        Object::Integer(value) => Object::Integer(-value),
-        _ => object::NULL,
+        Object::Integer(value) => Ok(Object::Integer(-value)),
+        _ => Ok(object::NULL),
     }
 }
 
@@ -89,25 +87,36 @@ fn eval_infix_expression(expr: ast::InfixExpression) -> Result<Object> {
     let right = eval_expression(*expr.right)?;
 
     match (&left, &right) {
-        (Object::Integer(left), Object::Integer(right)) => match expr.operator.to_string().as_str()
-        {
-            "+" => Ok(Object::Integer(left + right)),
-            "-" => Ok(Object::Integer(left - right)),
-            "*" => Ok(Object::Integer(left * right)),
-            "/" => Ok(Object::Integer(left / right)),
-            _ => {
-                error!(
-                    "Invalid operator {:?} for integers",
-                    expr.operator.to_string()
-                );
-                Ok(object::NULL)
-            }
-        },
+        (Object::Integer(left), Object::Integer(right)) => {
+            eval_integer_infix_expression(left, expr.operator.to_string().as_str(), right)
+        }
+        (_, _) if expr.operator == token::Token::EQ => Ok(object::Object::from_bool(left == right)),
+        (_, _) if expr.operator == token::Token::NOTEQ => {
+            Ok(object::Object::from_bool(left != right))
+        }
+
         _ => {
             error!(
                 "Invalid infix expression: left={:?}, right={:?}",
                 left, right
             );
+            Ok(object::NULL)
+        }
+    }
+}
+
+fn eval_integer_infix_expression(left: &i64, operator: &str, right: &i64) -> Result<Object> {
+    match operator {
+        "+" => Ok(Object::Integer(left + right)),
+        "-" => Ok(Object::Integer(left - right)),
+        "*" => Ok(Object::Integer(left * right)),
+        "/" => Ok(Object::Integer(left / right)),
+        "<" => Ok(object::Object::from_bool(left < right)),
+        ">" => Ok(object::Object::from_bool(left > right)),
+        "==" => Ok(object::Object::from_bool(left == right)),
+        "!=" => Ok(object::Object::from_bool(left != right)),
+        _ => {
+            error!("Invalid operator: {} for integers", operator);
             Ok(object::NULL)
         }
     }
@@ -167,23 +176,23 @@ mod tests {
         let tests = vec![
             ("true", true),
             ("false", false),
-            // ("1 < 2", true),
-            // ("1 > 2", false),
-            // ("1 < 1", false),
-            // ("1 > 1", false),
-            // ("1 == 1", true),
-            // ("1 != 1", false),
-            // ("1 == 2", false),
-            // ("1 != 2", true),
-            // ("true == true", true),
-            // ("false == false", true),
-            // ("true == false", false),
-            // ("true != false", true),
-            // ("false != true", true),
-            // ("(1 < 2) == true", true),
-            // ("(1 < 2) == false", false),
-            // ("(1 > 2) == true", false),
-            // ("(1 > 2) == false", true),
+            ("1 < 2", true),
+            ("1 > 2", false),
+            ("1 < 1", false),
+            ("1 > 1", false),
+            ("1 == 1", true),
+            ("1 != 1", false),
+            ("1 == 2", false),
+            ("1 != 2", true),
+            ("true == true", true),
+            ("false == false", true),
+            ("true == false", false),
+            ("true != false", true),
+            ("false != true", true),
+            ("(1 < 2) == true", true),
+            ("(1 < 2) == false", false),
+            ("(1 > 2) == true", false),
+            ("(1 > 2) == false", true),
         ];
 
         for (input, expected) in tests {
