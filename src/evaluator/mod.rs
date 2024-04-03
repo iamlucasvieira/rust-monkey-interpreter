@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::object::{self, Object};
 use crate::token;
-use anyhow::Result;
+use anyhow::{self, Result};
 use log::{debug, error};
 
 pub fn eval(node: ast::Node) -> Result<Object> {
@@ -124,7 +124,10 @@ fn eval_bang_operator_expression(right: Object) -> Result<Object> {
 fn eval_minus_prefix_operator_expression(right: Object) -> Result<Object> {
     match right {
         Object::Integer(value) => Ok(Object::Integer(-value)),
-        _ => Ok(object::NULL),
+        _ => anyhow::bail!(object::Error::UnkownOperator(format!(
+            "prefix -{}",
+            right.object_type()
+        ))),
     }
 }
 
@@ -140,14 +143,21 @@ fn eval_infix_expression(expr: ast::InfixExpression) -> Result<Object> {
         (_, _) if expr.operator == token::Token::NOTEQ => {
             Ok(object::Object::from_bool(left != right))
         }
-
-        _ => {
-            error!(
-                "Invalid infix expression: left={:?}, right={:?}",
-                left, right
-            );
-            Ok(object::NULL)
+        // Case differnt types:
+        (_, _) if left.object_type() != right.object_type() => {
+            anyhow::bail!(object::Error::TypeMismatch(format!(
+                "{} {} {}",
+                left.object_type(),
+                expr.operator,
+                right.object_type()
+            )))
         }
+        _ => anyhow::bail!(object::Error::UnkownOperator(format!(
+            "{} {} {}",
+            left.object_type(),
+            expr.operator,
+            right.object_type()
+        ))),
     }
 }
 
@@ -180,11 +190,11 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    fn test_eval(input: &str) -> Object {
+    fn test_eval(input: &str) -> Result<Object> {
         let mut l = Lexer::new(input);
         let mut p = Parser::new(&mut l);
         let program = p.parse_program().unwrap();
-        eval(program.into()).unwrap()
+        eval(program.into())
     }
 
     #[test]
@@ -210,7 +220,8 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
+            let evaluated =
+                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
             test_integer_object(evaluated, expected);
         }
     }
@@ -242,7 +253,8 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
+            let evaluated =
+                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
             test_boolean_object(evaluated, expected);
         }
     }
@@ -261,7 +273,8 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
+            let evaluated =
+                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
             test_boolean_object(evaluated, expected);
         }
     }
@@ -281,7 +294,8 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
+            let evaluated =
+                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
             match expected {
                 Some(value) => test_integer_object(evaluated, value),
                 None => test_null_object(evaluated),
@@ -310,8 +324,64 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let evaluated = test_eval(input);
+            let evaluated =
+                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
             test_integer_object(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_error_handling() {
+        init();
+        debug!("test_error_handling");
+        let tests = vec![
+            (
+                "5 + true;",
+                object::Error::TypeMismatch("INTEGER + BOOLEAN".to_string()),
+            ),
+            (
+                "5 + true; 5;",
+                object::Error::TypeMismatch("INTEGER + BOOLEAN".to_string()),
+            ),
+            (
+                "-true",
+                object::Error::UnkownOperator("prefix -BOOLEAN".to_string()),
+            ),
+            (
+                "true + false;",
+                object::Error::UnkownOperator("BOOLEAN + BOOLEAN".to_string()),
+            ),
+            (
+                "5; true + false; 5",
+                object::Error::UnkownOperator("BOOLEAN + BOOLEAN".to_string()),
+            ),
+            (
+                "if (10 > 1) { true + false; }",
+                object::Error::UnkownOperator("BOOLEAN + BOOLEAN".to_string()),
+            ),
+            (
+                r#"
+                if (10 > 1) {
+                    if (10 > 1) {
+                        return true + false;
+                    }
+                    return 1;
+                }
+                "#,
+                object::Error::UnkownOperator("BOOLEAN + BOOLEAN".to_string()),
+            ),
+            // (
+            //     "foobar",
+            //     object::Error::UnkownOperator("Unkown operator: foobar".to_string()),
+            // ),
+        ];
+        for (input, expected) in tests {
+            let err = test_eval(input)
+                .unwrap_err()
+                .downcast::<object::Error>()
+                .unwrap();
+
+            assert_eq!(err, expected);
         }
     }
 }

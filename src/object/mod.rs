@@ -12,8 +12,25 @@ pub enum Object {
     Return(Box<Object>),
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum Error {
+    TypeMismatch(String),
+    UnkownOperator(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::TypeMismatch(msg) => write!(f, "TypeMismatch: {}", msg),
+            Error::UnkownOperator(msg) => write!(f, "UnkownOperator: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
 impl Object {
-    fn object_type(&self) -> &'static str {
+    pub fn object_type(&self) -> &'static str {
         match self {
             Object::Integer(_) => "INTEGER",
             Object::Boolean(_) => "BOOLEAN",
@@ -67,6 +84,13 @@ pub mod tests {
         }
     }
 
+    pub fn test_error(err: Error, expected: &str) {
+        match err {
+            Error::TypeMismatch(msg) => assert_eq!(msg, expected),
+            Error::UnkownOperator(msg) => assert_eq!(msg, expected),
+        }
+    }
+
     #[test]
     fn test_integer_objects() {
         let tests = vec![
@@ -96,5 +120,17 @@ pub mod tests {
     #[test]
     fn test_null_objects() {
         test_null_object(Object::Null);
+    }
+
+    #[test]
+    fn test_errors() {
+        let tests = vec![
+            (Error::TypeMismatch("foo".to_string()), "foo"),
+            (Error::UnkownOperator("bar".to_string()), "bar"),
+        ];
+
+        for (err, expected) in tests {
+            test_error(err, expected);
+        }
     }
 }
