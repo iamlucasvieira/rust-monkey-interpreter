@@ -4,30 +4,13 @@ pub const TRUE: Object = Object::Boolean(true);
 pub const FALSE: Object = Object::Boolean(false);
 pub const NULL: Object = Object::Null;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Object {
     Integer(i64),
     Boolean(bool),
     Null,
     Return(Box<Object>),
 }
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum Error {
-    TypeMismatch(String),
-    UnkownOperator(String),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::TypeMismatch(msg) => write!(f, "TypeMismatch: {}", msg),
-            Error::UnkownOperator(msg) => write!(f, "UnkownOperator: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
 
 impl Object {
     pub fn object_type(&self) -> &'static str {
@@ -58,6 +41,24 @@ impl fmt::Display for Object {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum Error {
+    TypeMismatch(String),
+    UnkownOperator(String),
+    IdentifierNotFound(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::TypeMismatch(msg) => write!(f, "TypeMismatch: {}", msg),
+            Error::UnkownOperator(msg) => write!(f, "UnkownOperator: {}", msg),
+            Error::IdentifierNotFound(msg) => write!(f, "IdentifierNotFound: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -88,6 +89,7 @@ pub mod tests {
         match err {
             Error::TypeMismatch(msg) => assert_eq!(msg, expected),
             Error::UnkownOperator(msg) => assert_eq!(msg, expected),
+            Error::IdentifierNotFound(msg) => assert_eq!(msg, expected),
         }
     }
 
