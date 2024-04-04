@@ -1,7 +1,7 @@
 use crate::parser::Precedence;
 use std::fmt;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     ILLEGAL,
     EOF,

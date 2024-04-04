@@ -1,3 +1,6 @@
+use crate::ast;
+use crate::environment::Environment;
+use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
@@ -11,6 +14,11 @@ pub enum Object {
     Boolean(bool),
     Null,
     Return(Box<Rc<Object>>),
+    Function {
+        parameters: Vec<ast::Identifier>,
+        body: Rc<RefCell<ast::BlockStatement>>,
+        env: Rc<RefCell<Environment>>,
+    },
 }
 
 impl Object {
@@ -20,6 +28,7 @@ impl Object {
             Object::Boolean(_) => "BOOLEAN",
             Object::Null => "NULL",
             Object::Return(_) => "RETURN",
+            Object::Function { .. } => "FUNCTION",
         }
     }
 
@@ -38,6 +47,13 @@ impl fmt::Display for Object {
             Object::Boolean(value) => write!(f, "{}", value),
             Object::Null => write!(f, "null"),
             Object::Return(value) => write!(f, "{}", value),
+            Object::Function {
+                parameters, body, ..
+            } => {
+                let params: Vec<String> = parameters.iter().map(|p| p.to_string()).collect();
+                let body = body.borrow().to_string();
+                write!(f, "fn({}) {{\n{}\n}}", params.join(", "), body)
+            }
         }
     }
 }
