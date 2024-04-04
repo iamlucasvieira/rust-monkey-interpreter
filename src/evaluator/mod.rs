@@ -4,8 +4,9 @@ use crate::object::{self, Object};
 use crate::token;
 use anyhow::{self, Result};
 use log::{debug, error};
+use std::rc::Rc;
 
-pub fn eval(node: ast::Node, env: &mut Environment) -> Result<Object> {
+pub fn eval(node: ast::Node, env: &mut Environment) -> Result<Rc<Object>> {
     debug!("eval: {:?}", node);
     match node {
         ast::Node::Program(program) => eval_program(program, env),
@@ -14,19 +15,19 @@ pub fn eval(node: ast::Node, env: &mut Environment) -> Result<Object> {
     }
 }
 
-fn eval_program(program: ast::Program, env: &mut Environment) -> Result<Object> {
-    let mut result = Object::Null;
+fn eval_program(program: ast::Program, env: &mut Environment) -> Result<Rc<Object>> {
+    let mut result = Rc::new(Object::Null);
 
     for stmt in program.statements {
         result = eval(stmt.into(), env)?;
-        if let Object::Return(value) = result {
-            return Ok(*value);
+        if let Object::Return(value) = &*result {
+            return Ok(Rc::clone(value));
         }
     }
     Ok(result)
 }
 
-fn eval_statement(stmt: ast::Statement, env: &mut Environment) -> Result<Object> {
+fn eval_statement(stmt: ast::Statement, env: &mut Environment) -> Result<Rc<Object>> {
     match stmt {
         ast::Statement::Expression(expr) => eval(ast::Node::Expression(expr.expression), env),
         ast::Statement::Return(expr) => {
@@ -35,14 +36,14 @@ fn eval_statement(stmt: ast::Statement, env: &mut Environment) -> Result<Object>
         ast::Statement::Let(expr) => {
             let value = eval((expr.value).into(), env)?;
             env.set(expr.name.value, value);
-            Ok(object::NULL)
+            Ok(Rc::new(object::NULL))
         }
     }
 }
 
-fn eval_expression(expr: ast::Expression, env: &mut Environment) -> Result<Object> {
+fn eval_expression(expr: ast::Expression, env: &mut Environment) -> Result<Rc<Object>> {
     match expr {
-        ast::Expression::Integer(literal) => Ok(Object::Integer(literal.value)),
+        ast::Expression::Integer(literal) => Ok(Rc::new(Object::Integer(literal.value))),
         ast::Expression::Boolean(literal) => eval_boolean(literal),
         ast::Expression::Prefix(literal) => eval_prefix_expression(literal, env),
         ast::Expression::Infix(literal) => eval_infix_expression(literal, env),
@@ -52,50 +53,50 @@ fn eval_expression(expr: ast::Expression, env: &mut Environment) -> Result<Objec
         ast::Expression::Identifier(literal) => eval_identifier(literal, env),
         _ => {
             error!("eval_expression: {:?}", expr);
-            Ok(object::NULL)
+            Ok(Rc::new(object::NULL))
         }
     }
 }
 
-fn eval_identifier(expr: ast::Identifier, env: &mut Environment) -> Result<Object> {
+fn eval_identifier(expr: ast::Identifier, env: &mut Environment) -> Result<Rc<Object>> {
     match env.get(&expr.value) {
-        Some(value) => Ok(value.clone()),
+        Some(value) => Ok(value),
         None => anyhow::bail!(object::Error::IdentifierNotFound(expr.value)),
     }
 }
 
-fn eval_block_statement(stmt: ast::BlockStatement, env: &mut Environment) -> Result<Object> {
-    let mut result = Object::Null;
+fn eval_block_statement(stmt: ast::BlockStatement, env: &mut Environment) -> Result<Rc<Object>> {
+    let mut result = Rc::new(Object::Null);
 
     for stmt in stmt.statements {
         result = eval(stmt.into(), env)?;
-        if let Object::Return(_) = result {
+        if let Object::Return(_) = &*result {
             return Ok(result);
         }
     }
     Ok(result)
 }
 
-fn eval_return_expression(expr: ast::ReturnStatement, env: &mut Environment) -> Result<Object> {
+fn eval_return_expression(expr: ast::ReturnStatement, env: &mut Environment) -> Result<Rc<Object>> {
     let value = eval((*expr.return_value).into(), env)?;
-    Ok(Object::Return(Box::new(value)))
+    Ok(Rc::new(Object::Return(Box::new(value))))
 }
 
-fn eval_if_expression(expr: ast::IfExpression, env: &mut Environment) -> Result<Object> {
+fn eval_if_expression(expr: ast::IfExpression, env: &mut Environment) -> Result<Rc<Object>> {
     let condition = eval((*expr.condition).into(), env)?;
-    if is_truthy(condition) {
+    if is_truthy(&condition) {
         let consequence: ast::Expression = expr.consequence.into();
         eval(consequence.into(), env)
     } else if let Some(alternative) = expr.alternative {
         let alternative: ast::Expression = alternative.into();
         eval(alternative.into(), env)
     } else {
-        Ok(object::NULL)
+        Ok(Rc::new(object::NULL))
     }
 }
 
-fn is_truthy(obj: Object) -> bool {
-    match obj {
+fn is_truthy(obj: &Object) -> bool {
+    match *obj {
         object::NULL => false,
         object::TRUE => true,
         object::FALSE => false,
@@ -103,39 +104,43 @@ fn is_truthy(obj: Object) -> bool {
     }
 }
 
-fn eval_boolean(expr: ast::Boolean) -> Result<Object> {
-    Ok(object::Object::from_bool(expr.value))
+fn eval_boolean(expr: ast::Boolean) -> Result<Rc<Object>> {
+    Ok(Rc::new(object::Object::from_bool(expr.value)))
 }
 
-fn eval_prefix_expression(expr: ast::PrefixExpression, env: &mut Environment) -> Result<Object> {
+fn eval_prefix_expression(
+    expr: ast::PrefixExpression,
+    env: &mut Environment,
+) -> Result<Rc<Object>> {
     match expr.operator.to_string().as_str() {
         "!" => {
             let right = eval_expression(*expr.right, env)?;
-            eval_bang_operator_expression(right)
+            eval_bang_operator_expression(&right)
         }
         "-" => {
             let right = eval_expression(*expr.right, env)?;
-            eval_minus_prefix_operator_expression(right)
+            eval_minus_prefix_operator_expression(&right)
         }
         _ => {
             error!("eval_prefix_expression: {:?}", expr);
-            Ok(object::NULL)
+            Ok(Rc::new(object::NULL))
         }
     }
 }
 
-fn eval_bang_operator_expression(right: Object) -> Result<Object> {
-    match right {
-        object::TRUE => Ok(object::FALSE),
-        object::FALSE => Ok(object::TRUE),
-        object::NULL => Ok(object::TRUE),
-        _ => Ok(object::FALSE),
-    }
+fn eval_bang_operator_expression(right: &Object) -> Result<Rc<Object>> {
+    let result = match *right {
+        object::TRUE => object::FALSE,
+        object::FALSE => object::TRUE,
+        object::NULL => object::TRUE,
+        _ => object::FALSE,
+    };
+    Ok(Rc::new(result))
 }
 
-fn eval_minus_prefix_operator_expression(right: Object) -> Result<Object> {
-    match right {
-        Object::Integer(value) => Ok(Object::Integer(-value)),
+fn eval_minus_prefix_operator_expression(right: &Object) -> Result<Rc<Object>> {
+    match *right {
+        Object::Integer(value) => Ok(Rc::new(Object::Integer(-value))),
         _ => anyhow::bail!(object::Error::UnkownOperator(format!(
             "prefix -{}",
             right.object_type()
@@ -143,17 +148,19 @@ fn eval_minus_prefix_operator_expression(right: Object) -> Result<Object> {
     }
 }
 
-fn eval_infix_expression(expr: ast::InfixExpression, env: &mut Environment) -> Result<Object> {
+fn eval_infix_expression(expr: ast::InfixExpression, env: &mut Environment) -> Result<Rc<Object>> {
     let left = eval_expression(*expr.left, env)?;
     let right = eval_expression(*expr.right, env)?;
 
-    match (&left, &right) {
+    match (&*left, &*right) {
         (Object::Integer(left), Object::Integer(right)) => {
             eval_integer_infix_expression(left, expr.operator.to_string().as_str(), right)
         }
-        (_, _) if expr.operator == token::Token::EQ => Ok(object::Object::from_bool(left == right)),
+        (_, _) if expr.operator == token::Token::EQ => {
+            Ok(Rc::new(object::Object::from_bool(left == right)))
+        }
         (_, _) if expr.operator == token::Token::NOTEQ => {
-            Ok(object::Object::from_bool(left != right))
+            Ok(Rc::new(object::Object::from_bool(left != right)))
         }
         // Case differnt types:
         (_, _) if left.object_type() != right.object_type() => {
@@ -173,21 +180,22 @@ fn eval_infix_expression(expr: ast::InfixExpression, env: &mut Environment) -> R
     }
 }
 
-fn eval_integer_infix_expression(left: &i64, operator: &str, right: &i64) -> Result<Object> {
-    match operator {
-        "+" => Ok(Object::Integer(left + right)),
-        "-" => Ok(Object::Integer(left - right)),
-        "*" => Ok(Object::Integer(left * right)),
-        "/" => Ok(Object::Integer(left / right)),
-        "<" => Ok(object::Object::from_bool(left < right)),
-        ">" => Ok(object::Object::from_bool(left > right)),
-        "==" => Ok(object::Object::from_bool(left == right)),
-        "!=" => Ok(object::Object::from_bool(left != right)),
+fn eval_integer_infix_expression(left: &i64, operator: &str, right: &i64) -> Result<Rc<Object>> {
+    let result = match operator {
+        "+" => Object::Integer(left + right),
+        "-" => Object::Integer(left - right),
+        "*" => Object::Integer(left * right),
+        "/" => Object::Integer(left / right),
+        "<" => object::Object::from_bool(left < right),
+        ">" => object::Object::from_bool(left > right),
+        "==" => object::Object::from_bool(left == right),
+        "!=" => object::Object::from_bool(left != right),
         _ => {
             error!("Invalid operator: {} for integers", operator);
-            Ok(object::NULL)
+            object::NULL
         }
-    }
+    };
+    Ok(Rc::new(result))
 }
 
 #[cfg(test)]
@@ -202,7 +210,7 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    fn test_eval(input: &str) -> Result<Object> {
+    fn test_eval(input: &str) -> Result<Rc<Object>> {
         let mut l = Lexer::new(input);
         let mut p = Parser::new(&mut l);
         let program = p.parse_program().unwrap();
@@ -235,7 +243,7 @@ mod tests {
         for (input, expected) in tests {
             let evaluated =
                 test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
-            test_integer_object(evaluated, expected);
+            test_integer_object(&evaluated, expected);
         }
     }
 
@@ -268,7 +276,7 @@ mod tests {
         for (input, expected) in tests {
             let evaluated =
                 test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
-            test_boolean_object(evaluated, expected);
+            test_boolean_object(&evaluated, expected);
         }
     }
 
@@ -288,7 +296,7 @@ mod tests {
         for (input, expected) in tests {
             let evaluated =
                 test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
-            test_boolean_object(evaluated, expected);
+            test_boolean_object(&evaluated, expected);
         }
     }
 
@@ -310,8 +318,8 @@ mod tests {
             let evaluated =
                 test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
             match expected {
-                Some(value) => test_integer_object(evaluated, value),
-                None => test_null_object(evaluated),
+                Some(value) => test_integer_object(&evaluated, value),
+                None => test_null_object(&evaluated),
             }
         }
     }
@@ -339,7 +347,7 @@ mod tests {
         for (input, expected) in tests {
             let evaluated =
                 test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
-            test_integer_object(evaluated, expected);
+            test_integer_object(&evaluated, expected);
         }
     }
 
@@ -412,7 +420,7 @@ mod tests {
         for (input, expected) in tests {
             let evaluated =
                 test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
-            test_integer_object(evaluated, expected);
+            test_integer_object(&evaluated, expected);
         }
     }
 }

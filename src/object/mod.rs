@@ -1,4 +1,5 @@
 use std::fmt;
+use std::rc::Rc;
 
 pub const TRUE: Object = Object::Boolean(true);
 pub const FALSE: Object = Object::Boolean(false);
@@ -9,7 +10,7 @@ pub enum Object {
     Integer(i64),
     Boolean(bool),
     Null,
-    Return(Box<Object>),
+    Return(Box<Rc<Object>>),
 }
 
 impl Object {
@@ -63,22 +64,22 @@ impl std::error::Error for Error {}
 pub mod tests {
     use super::*;
 
-    pub fn test_integer_object(obj: Object, expected: i64) {
+    pub fn test_integer_object(obj: &Object, expected: i64) {
         match obj {
-            Object::Integer(value) => assert_eq!(value, expected),
-            Object::Return(value) => test_integer_object(*value, expected),
+            Object::Integer(value) => assert_eq!(*value, expected),
+            Object::Return(value) => test_integer_object(&**value, expected),
             _ => panic!("object is not Integer. got={}", obj.object_type()),
         }
     }
 
-    pub fn test_boolean_object(obj: Object, expected: bool) {
+    pub fn test_boolean_object(obj: &Object, expected: bool) {
         match obj {
-            Object::Boolean(value) => assert_eq!(value, expected),
+            Object::Boolean(value) => assert_eq!(*value, expected),
             _ => panic!("object is not Boolean. got={}", obj.object_type()),
         }
     }
 
-    pub fn test_null_object(obj: Object) {
+    pub fn test_null_object(obj: &Object) {
         match obj {
             Object::Null => (),
             _ => panic!("object is not Null. got={}", obj.object_type()),
@@ -103,7 +104,7 @@ pub mod tests {
         ];
 
         for (obj, expected) in tests {
-            test_integer_object(obj, expected);
+            test_integer_object(&obj, expected);
         }
     }
 
@@ -115,13 +116,13 @@ pub mod tests {
         ];
 
         for (obj, expected) in tests {
-            test_boolean_object(obj, expected);
+            test_boolean_object(&obj, expected);
         }
     }
 
     #[test]
     fn test_null_objects() {
-        test_null_object(Object::Null);
+        test_null_object(&Object::Null);
     }
 
     #[test]
