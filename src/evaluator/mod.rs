@@ -520,4 +520,19 @@ mod tests {
             test_integer_object(&evaluated, expected);
         }
     }
+
+    #[test]
+    fn test_closures() {
+        init();
+        debug!("test_closures");
+        let input = r#"
+        let newAdder = fn(x) {
+            fn(y) { x + y };
+        };
+        let addTwo = newAdder(2);
+        addTwo(3);
+        "#;
+        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        test_integer_object(&evaluated, 5);
+    }
 }
