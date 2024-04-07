@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::builtins::Builtins;
 use crate::environment::Environment;
 use crate::object::{self, Object};
 use crate::token;
@@ -6,6 +7,7 @@ use anyhow::{self, Result};
 use log::{debug, error};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::str::FromStr;
 
 pub fn eval(node: ast::Node, env: Rc<RefCell<Environment>>) -> Result<Rc<Object>> {
     debug!("eval: {:?}", node);
@@ -97,6 +99,7 @@ fn apply_function(func: Rc<Object>, args: Vec<Rc<Object>>) -> Result<Rc<Object>>
 
             eval(expr.into(), Rc::new(RefCell::new(extended_env)))
         }
+        Object::BuiltInFunction(builtin) => builtin.call(args),
         _ => anyhow::bail!(object::Error::UnkownOperator(format!(
             "not a function: {}",
             func.object_type()
@@ -105,9 +108,12 @@ fn apply_function(func: Rc<Object>, args: Vec<Rc<Object>>) -> Result<Rc<Object>>
 }
 
 fn eval_identifier(expr: ast::Identifier, env: Rc<RefCell<Environment>>) -> Result<Rc<Object>> {
-    match env.borrow().get(&expr.value) {
-        Some(value) => Ok(value),
-        None => anyhow::bail!(object::Error::IdentifierNotFound(expr.value)),
+    if let Some(value) = env.borrow().get(&expr.value) {
+        Ok(value)
+    } else if let Ok(builtin) = Builtins::from_str(&expr.value) {
+        Ok(Rc::new(Object::BuiltInFunction(builtin)))
+    } else {
+        anyhow::bail!(object::Error::IdentifierNotFound(expr.value))
     }
 }
 
@@ -592,5 +598,43 @@ mod tests {
             err,
             object::Error::TypeMismatch("STRING + INTEGER".to_string())
         );
+    }
+
+    #[test]
+    fn test_builtin_functions() {
+        init();
+        debug!("test_builtin_functions");
+        let tests = vec![
+            (r#"len("")"#, Object::Integer(0)),
+            (r#"len("four")"#, Object::Integer(4)),
+            (r#"len("hello world")"#, Object::Integer(11)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated =
+                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+            assert_eq!(*evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_builtin_functions_errors() {
+        init();
+        debug!("test_builtin_functions_errors");
+        let tests = vec![
+            (r#"len(1)"#, "argument to `len` not supported, got INTEGER"),
+            (
+                r#"len("one", "two")"#,
+                "wrong number of arguments. got=2, want=1",
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let err = test_eval(input)
+                .expect_err(&format!("Failed to evaluate input: {}", input))
+                .downcast::<object::Error>()
+                .expect("Failed to downcast to object::Error");
+            assert_eq!(err, object::Error::TypeMismatch(expected.to_string()));
+        }
     }
 }

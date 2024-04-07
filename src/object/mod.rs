@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::builtins::Builtins;
 use crate::environment::Environment;
 use std::cell::RefCell;
 use std::fmt;
@@ -20,6 +21,7 @@ pub enum Object {
         body: Rc<RefCell<ast::BlockStatement>>,
         env: Rc<RefCell<Environment>>,
     },
+    BuiltInFunction(Builtins),
 }
 
 impl Object {
@@ -31,6 +33,7 @@ impl Object {
             Object::Null => "NULL",
             Object::Return(_) => "RETURN",
             Object::Function { .. } => "FUNCTION",
+            Object::BuiltInFunction(_) => "BUILTIN_FUNCTION",
         }
     }
 
@@ -57,6 +60,7 @@ impl fmt::Display for Object {
                 let body = body.borrow().to_string();
                 write!(f, "fn({}) {{\n{}\n}}", params.join(", "), body)
             }
+            Object::BuiltInFunction(_) => write!(f, "Builtin Function"),
         }
     }
 }
