@@ -11,6 +11,7 @@ pub const NULL: Object = Object::Null;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Object {
     Integer(i64),
+    String(String),
     Boolean(bool),
     Null,
     Return(Box<Rc<Object>>),
@@ -25,6 +26,7 @@ impl Object {
     pub fn object_type(&self) -> &'static str {
         match self {
             Object::Integer(_) => "INTEGER",
+            Object::String(_) => "STRING",
             Object::Boolean(_) => "BOOLEAN",
             Object::Null => "NULL",
             Object::Return(_) => "RETURN",
@@ -44,6 +46,7 @@ impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Object::Integer(value) => write!(f, "{}", value),
+            Object::String(value) => write!(f, "\'{}\'", value),
             Object::Boolean(value) => write!(f, "{}", value),
             Object::Null => write!(f, "null"),
             Object::Return(value) => write!(f, "{}", value),

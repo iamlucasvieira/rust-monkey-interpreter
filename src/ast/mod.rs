@@ -21,6 +21,7 @@ impl fmt::Debug for Node {
 pub enum Expression {
     Identifier(Identifier),
     Integer(IntegerLiteral),
+    String(StringLiteral),
     Boolean(Boolean),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
@@ -36,6 +37,7 @@ impl fmt::Display for Expression {
         match self {
             Expression::Identifier(ident) => write!(f, "{}", ident),
             Expression::Integer(int) => write!(f, "{}", int),
+            Expression::String(s) => write!(f, "{}", s),
             Expression::Boolean(b) => write!(f, "{}", b),
             Expression::Prefix(p) => write!(f, "{}", p),
             Expression::Infix(i) => write!(f, "{}", i),
@@ -53,6 +55,7 @@ impl fmt::Debug for Expression {
         match self {
             Expression::Identifier(ident) => write!(f, "{:?}", ident),
             Expression::Integer(int) => write!(f, "{:?}", int),
+            Expression::String(s) => write!(f, "{:?}", s),
             Expression::Boolean(b) => write!(f, "{:?}", b),
             Expression::Prefix(p) => write!(f, "{:?}", p),
             Expression::Infix(i) => write!(f, "{:?}", i),
@@ -273,6 +276,37 @@ impl From<IntegerLiteral> for Expression {
 impl fmt::Display for IntegerLiteral {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.value)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct StringLiteral {
+    pub token: token::Token,
+    pub value: String,
+}
+
+impl StringLiteral {
+    pub fn new(token: token::Token) -> StringLiteral {
+        let value = token.value().to_string();
+        StringLiteral { token, value }
+    }
+}
+
+impl ASTNode for StringLiteral {
+    fn token_literal(&self) -> &str {
+        self.token.value()
+    }
+}
+
+impl fmt::Display for StringLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "\'{}\'", self.token.value())
+    }
+}
+
+impl From<StringLiteral> for Expression {
+    fn from(s: StringLiteral) -> Expression {
+        Expression::String(s)
     }
 }
 

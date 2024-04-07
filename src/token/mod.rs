@@ -8,6 +8,7 @@ pub enum Token {
 
     IDENT(String),
     INT(String),
+    STRING(String),
 
     ASSIGN,
     PLUS,
@@ -52,6 +53,7 @@ impl Token {
 
             Token::IDENT(value) => value,
             Token::INT(value) => value,
+            Token::STRING(value) => value,
 
             Token::ASSIGN => "=",
             Token::PLUS => "+",
@@ -146,6 +148,7 @@ mod tests {
             (Token::EOF, "EOF"),
             (Token::IDENT("foobar".to_string()), "foobar"),
             (Token::INT("123".to_string()), "123"),
+            (Token::STRING("foobar".to_string()), "foobar"),
             (Token::ASSIGN, "="),
             (Token::PLUS, "+"),
             (Token::MINUS, "-"),
@@ -229,6 +232,16 @@ mod tests {
             (
                 Token::INT("123".to_string()),
                 Token::INT("321".to_string()),
+                true,
+            ),
+            (
+                Token::STRING("foobar".to_string()),
+                Token::STRING("foobar".to_string()),
+                true,
+            ),
+            (
+                Token::STRING("foobar".to_string()),
+                Token::STRING("barfoo".to_string()),
                 true,
             ),
             (Token::ASSIGN, Token::ASSIGN, true),

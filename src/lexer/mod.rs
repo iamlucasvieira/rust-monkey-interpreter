@@ -57,6 +57,10 @@ impl<'a> Lexer<'a> {
                     token::Token::BANG
                 }
             }
+            Some('"') => {
+                let string = self.read_string();
+                token::Token::STRING(string)
+            }
             Some(ch) => token::Token::from_literal(&ch.to_string()),
             None => token::Token::EOF,
         };
@@ -111,6 +115,19 @@ impl<'a> Lexer<'a> {
             }
         }
         number.iter().collect()
+    }
+
+    fn read_string(&mut self) -> String {
+        let mut string = Vec::new();
+        self.read_char();
+        while let Some(ch) = self.ch {
+            if ch == '"' || ch == '\0' {
+                break;
+            }
+            string.push(ch);
+            self.read_char();
+        }
+        string.iter().collect()
     }
 
     /// Skips whitespace characters.
@@ -302,6 +319,8 @@ let add = fn(x, y) {
     x + y;
 };
 let result = add(five, ten);
+\"foobar\"
+\"foo bar\"
 ",
         );
         let mut l = Lexer::new(&input);
@@ -455,6 +474,14 @@ let result = add(five, ten);
             TestCase {
                 expected_type: token::Token::SEMICOLON,
                 expected_literal: ";",
+            },
+            TestCase {
+                expected_type: token::Token::STRING("foobar".to_string()),
+                expected_literal: "foobar",
+            },
+            TestCase {
+                expected_type: token::Token::STRING("foo bar".to_string()),
+                expected_literal: "foo bar",
             },
             TestCase {
                 expected_type: token::Token::EOF,
@@ -814,5 +841,14 @@ let result = add(five, ten);
 
         let number = l.read_number();
         assert_eq!(number, "123");
+    }
+
+    #[test]
+    fn test_lexer_read_string() {
+        let input = String::from("\"hello world\"");
+        let mut l = Lexer::new(&input);
+
+        let string = l.read_string();
+        assert_eq!(string, "hello world");
     }
 }

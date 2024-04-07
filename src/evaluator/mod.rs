@@ -45,6 +45,7 @@ fn eval_statement(stmt: ast::Statement, env: Rc<RefCell<Environment>>) -> Result
 fn eval_expression(expr: ast::Expression, env: Rc<RefCell<Environment>>) -> Result<Rc<Object>> {
     match expr {
         ast::Expression::Integer(literal) => Ok(Rc::new(Object::Integer(literal.value))),
+        ast::Expression::String(literal) => Ok(Rc::new(Object::String(literal.value))),
         ast::Expression::Boolean(literal) => eval_boolean(literal),
         ast::Expression::Prefix(literal) => eval_prefix_expression(literal, Rc::clone(&env)),
         ast::Expression::Infix(literal) => eval_infix_expression(literal, Rc::clone(&env)),
@@ -213,6 +214,9 @@ fn eval_infix_expression(
         (Object::Integer(left), Object::Integer(right)) => {
             eval_integer_infix_expression(left, expr.operator.to_string().as_str(), right)
         }
+        (Object::String(left), Object::String(right)) => {
+            eval_string_infix_expression(left, expr.operator.to_string().as_str(), right)
+        }
         (_, _) if expr.operator == token::Token::EQ => {
             Ok(Rc::new(object::Object::from_bool(left == right)))
         }
@@ -248,8 +252,23 @@ fn eval_integer_infix_expression(left: &i64, operator: &str, right: &i64) -> Res
         "==" => object::Object::from_bool(left == right),
         "!=" => object::Object::from_bool(left != right),
         _ => {
-            error!("Invalid operator: {} for integers", operator);
-            object::NULL
+            anyhow::bail!(object::Error::UnkownOperator(format!(
+                "INTEGER {} INTEGER",
+                operator
+            )))
+        }
+    };
+    Ok(Rc::new(result))
+}
+
+fn eval_string_infix_expression(left: &str, operator: &str, right: &str) -> Result<Rc<Object>> {
+    let result = match operator {
+        "+" => Object::String(format!("{}{}", left, right)),
+        _ => {
+            anyhow::bail!(object::Error::UnkownOperator(format!(
+                "STRING {} STRING",
+                operator
+            )))
         }
     };
     Ok(Rc::new(result))
@@ -534,5 +553,44 @@ mod tests {
         "#;
         let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
         test_integer_object(&evaluated, 5);
+    }
+
+    #[test]
+    fn test_string_literal() {
+        init();
+        debug!("test_string_literal");
+        let input = r#""Hello, World!""#;
+        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        match &*evaluated {
+            Object::String(value) => assert_eq!(value, "Hello, World!"),
+            _ => panic!("object is not String. got={}", evaluated.object_type()),
+        }
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        init();
+        debug!("test_string_concatenation");
+        let input = r#""Hello" + " " + "World!""#;
+        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        match &*evaluated {
+            Object::String(value) => assert_eq!(value, "Hello World!"),
+            _ => panic!("object is not String. got={}", evaluated.object_type()),
+        }
+    }
+
+    #[test]
+    fn test_error_handling_string_concatenation() {
+        init();
+        debug!("test_error_handling_string_concatenation");
+        let input = r#""Hello" + " " + 1"#;
+        let err = test_eval(input)
+            .unwrap_err()
+            .downcast::<object::Error>()
+            .unwrap();
+        assert_eq!(
+            err,
+            object::Error::TypeMismatch("STRING + INTEGER".to_string())
+        );
     }
 }

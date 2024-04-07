@@ -35,6 +35,7 @@ impl<'a> Parser<'a> {
         match t {
             token::Token::IDENT(_) => self.parse_identifier(),
             token::Token::INT(_) => self.parse_integer_literal(),
+            token::Token::STRING(_) => self.parse_string_literal(),
             token::Token::BANG | token::Token::MINUS => self.parse_prefix_expression(),
             token::Token::TRUE | token::Token::FALSE => self.parse_boolean(),
             token::Token::LPAREN => self.parse_grouped_expression(),
@@ -82,6 +83,11 @@ impl<'a> Parser<'a> {
             return Err(anyhow!("Parse errors: \n{:?}", self.errors.join("\n")));
         }
         Ok(program)
+    }
+
+    fn parse_string_literal(&mut self) -> Result<ast::Expression> {
+        debug!("Parsing string literal: {:?}", self.cur_token);
+        Ok(ast::StringLiteral::new(self.cur_token.clone()).into())
     }
 
     fn parse_statement(&mut self) -> Result<ast::Statement> {
@@ -1018,6 +1024,39 @@ mod tests {
                 );
             } else {
                 panic!("Expected CallExpression, got {:?}", program.statements[0]);
+            }
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
+    }
+
+    #[test]
+    fn test_string_literal_expression() {
+        let input = r#""hello world";"#;
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = match p.parse_program() {
+            Ok(program) => program,
+            Err(e) => panic!("{}", e),
+        };
+
+        assert!(p.errors.is_empty(), "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            if let ast::Expression::String(string) = &stmt.expression {
+                assert_eq!(string.value, "hello world");
+                assert_eq!(string.token_literal(), "hello world");
+            } else {
+                panic!("Expected StringLiteral, got {:?}", program.statements[0]);
             }
         } else {
             panic!(
