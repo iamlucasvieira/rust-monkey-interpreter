@@ -29,6 +29,8 @@ pub enum Token {
     RPAREN,
     LBRACE,
     RBRACE,
+    LBRACKET,
+    RBRACKET,
 
     FUNCTION,
     LET,
@@ -74,6 +76,8 @@ impl Token {
             Token::RPAREN => ")",
             Token::LBRACE => "{",
             Token::RBRACE => "}",
+            Token::LBRACKET => "[",
+            Token::RBRACKET => "]",
 
             Token::FUNCTION => "fn",
             Token::LET => "let",
@@ -101,6 +105,8 @@ impl Token {
             ")" => Token::RPAREN,
             "{" => Token::LBRACE,
             "}" => Token::RBRACE,
+            "[" => Token::LBRACKET,
+            "]" => Token::RBRACKET,
             "==" => Token::EQ,
             "!=" => Token::NOTEQ,
             "" => Token::EOF,
@@ -132,6 +138,7 @@ impl Token {
             Token::PLUS | Token::MINUS => Precedence::SUM,
             Token::SLASH | Token::ASTERISK => Precedence::PRODUCT,
             Token::LPAREN => Precedence::CALL,
+            Token::LBRACKET => Precedence::INDEX,
             _ => Precedence::LOWEST,
         }
     }
@@ -165,6 +172,8 @@ mod tests {
             (Token::RPAREN, ")"),
             (Token::LBRACE, "{"),
             (Token::RBRACE, "}"),
+            (Token::LBRACKET, "["),
+            (Token::RBRACKET, "]"),
             (Token::FUNCTION, "fn"),
             (Token::LET, "let"),
             (Token::TRUE, "true"),

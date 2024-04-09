@@ -61,6 +61,11 @@ fn eval_expression(expr: ast::Expression, env: Rc<RefCell<Environment>>) -> Resu
             env: Rc::clone(&env),
         })),
         ast::Expression::Call(literal) => eval_function_call(literal, Rc::clone(&env)),
+        ast::Expression::Array(literal) => {
+            let elements = eval_expressions(literal.elements, Rc::clone(&env))?;
+            Ok(Rc::new(Object::Array(elements)))
+        }
+        ast::Expression::Index(literal) => eval_index_expression(literal, Rc::clone(&env)),
     }
 }
 
@@ -81,6 +86,28 @@ fn eval_function_call(
     let function = eval((*expr.function).into(), Rc::clone(&env))?;
     let args = eval_expressions(expr.arguments, Rc::clone(&env))?;
     apply_function(function, args)
+}
+
+fn eval_index_expression(
+    expr: ast::IndexExpression,
+    env: Rc<RefCell<Environment>>,
+) -> Result<Rc<Object>> {
+    let left = eval((*expr.left).into(), Rc::clone(&env))?;
+    let index = eval((*expr.index).into(), Rc::clone(&env))?;
+
+    match (&*left, &*index) {
+        (Object::Array(elements), Object::Integer(i)) => {
+            if *i < 0 || *i >= elements.len() as i64 {
+                return Ok(Rc::new(object::NULL));
+            }
+            Ok(Rc::clone(&elements[*i as usize]))
+        }
+        _ => anyhow::bail!(object::Error::UnkownOperator(format!(
+            "{}[{}]",
+            left.object_type(),
+            index.object_type()
+        ))),
+    }
 }
 
 fn apply_function(func: Rc<Object>, args: Vec<Rc<Object>>) -> Result<Rc<Object>> {
@@ -635,6 +662,58 @@ mod tests {
                 .downcast::<object::Error>()
                 .expect("Failed to downcast to object::Error");
             assert_eq!(err, object::Error::TypeMismatch(expected.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_array_literals() {
+        init();
+        debug!("test_array_literals");
+        let input = "[1, 2 * 2, 3 + 3]";
+        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        match &*evaluated {
+            Object::Array(elements) => {
+                assert_eq!(elements.len(), 3);
+                test_integer_object(&elements[0], 1);
+                test_integer_object(&elements[1], 4);
+                test_integer_object(&elements[2], 6);
+            }
+            _ => panic!("object is not Array. got={}", evaluated.object_type()),
+        }
+    }
+
+    #[test]
+    fn test_array_index_expressions() {
+        init();
+        debug!("test_array_index_expressions");
+        let tests = vec![
+            ("[1, 2, 3][0]", Object::Integer(1)),
+            ("[1, 2, 3][1]", Object::Integer(2)),
+            ("[1, 2, 3][2]", Object::Integer(3)),
+            ("let i = 0; [1][i];", Object::Integer(1)),
+            ("[1, 2, 3][1 + 1];", Object::Integer(3)),
+            ("let myArray = [1, 2, 3]; myArray[2];", Object::Integer(3)),
+            (
+                "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+                Object::Integer(6),
+            ),
+            (
+                "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+                Object::Integer(2),
+            ),
+            ("[1, 2, 3][3]", object::NULL),
+            ("[1, 2, 3][-1]", object::NULL),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated =
+                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+
+            if let Object::Integer(i) = expected {
+                test_integer_object(&evaluated, i);
+            } else {
+                test_null_object(&evaluated);
+            }
         }
     }
 }

@@ -22,6 +22,7 @@ pub enum Object {
         env: Rc<RefCell<Environment>>,
     },
     BuiltInFunction(Builtins),
+    Array(Vec<Rc<Object>>),
 }
 
 impl Object {
@@ -34,6 +35,7 @@ impl Object {
             Object::Return(_) => "RETURN",
             Object::Function { .. } => "FUNCTION",
             Object::BuiltInFunction(_) => "BUILTIN_FUNCTION",
+            Object::Array(_) => "ARRAY",
         }
     }
 
@@ -61,6 +63,10 @@ impl fmt::Display for Object {
                 write!(f, "fn({}) {{\n{}\n}}", params.join(", "), body)
             }
             Object::BuiltInFunction(_) => write!(f, "Builtin Function"),
+            Object::Array(elements) => {
+                let elements: Vec<String> = elements.iter().map(|e| e.to_string()).collect();
+                write!(f, "[{}]", elements.join(", "))
+            }
         }
     }
 }

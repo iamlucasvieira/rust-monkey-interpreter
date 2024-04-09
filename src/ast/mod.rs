@@ -30,6 +30,8 @@ pub enum Expression {
     Function(FunctionLiteral),
     Return(ReturnStatement),
     Call(CallExpression),
+    Array(ArrayLiteral),
+    Index(IndexExpression),
 }
 
 impl Expression {
@@ -46,6 +48,8 @@ impl Expression {
             Expression::Function(func) => func,
             Expression::Return(r) => r,
             Expression::Call(c) => c,
+            Expression::Array(a) => a,
+            Expression::Index(i) => i,
         }
     }
 }
@@ -551,6 +555,71 @@ impl fmt::Display for CallExpression {
                 .collect::<Vec<String>>()
                 .join(", ")
         )
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct ArrayLiteral {
+    pub token: token::Token,
+    pub elements: Vec<Expression>,
+}
+
+impl ArrayLiteral {
+    pub fn new(token: token::Token, elements: Vec<Expression>) -> ArrayLiteral {
+        ArrayLiteral { token, elements }
+    }
+}
+
+impl_astnode_for!(ArrayLiteral);
+
+impl From<ArrayLiteral> for Expression {
+    fn from(array: ArrayLiteral) -> Expression {
+        Expression::Array(array)
+    }
+}
+
+impl fmt::Display for ArrayLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            self.elements
+                .iter()
+                .map(|elem| elem.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")
+        )
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct IndexExpression {
+    pub token: token::Token,
+    pub left: Box<Expression>,
+    pub index: Box<Expression>,
+}
+
+impl IndexExpression {
+    pub fn new(token: token::Token, left: Expression, index: Expression) -> IndexExpression {
+        IndexExpression {
+            token,
+            left: Box::new(left),
+            index: Box::new(index),
+        }
+    }
+}
+
+impl_astnode_for!(IndexExpression);
+
+impl From<IndexExpression> for Expression {
+    fn from(index: IndexExpression) -> Expression {
+        Expression::Index(index)
+    }
+}
+
+impl fmt::Display for IndexExpression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}[{}])", self.left, self.index)
     }
 }
 

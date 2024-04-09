@@ -321,6 +321,7 @@ let add = fn(x, y) {
 let result = add(five, ten);
 \"foobar\"
 \"foo bar\"
+[1, 2];
 ",
         );
         let mut l = Lexer::new(&input);
@@ -482,6 +483,30 @@ let result = add(five, ten);
             TestCase {
                 expected_type: token::Token::STRING("foo bar".to_string()),
                 expected_literal: "foo bar",
+            },
+            TestCase {
+                expected_type: token::Token::LBRACKET,
+                expected_literal: "[",
+            },
+            TestCase {
+                expected_type: token::Token::INT("1".to_string()),
+                expected_literal: "1",
+            },
+            TestCase {
+                expected_type: token::Token::COMMA,
+                expected_literal: ",",
+            },
+            TestCase {
+                expected_type: token::Token::INT("2".to_string()),
+                expected_literal: "2",
+            },
+            TestCase {
+                expected_type: token::Token::RBRACKET,
+                expected_literal: "]",
+            },
+            TestCase {
+                expected_type: token::Token::SEMICOLON,
+                expected_literal: ";",
             },
             TestCase {
                 expected_type: token::Token::EOF,
