@@ -32,39 +32,33 @@ pub enum Expression {
     Call(CallExpression),
 }
 
+impl Expression {
+    fn inner(&self) -> &dyn ASTNode {
+        match self {
+            Expression::Identifier(ident) => ident,
+            Expression::Integer(int) => int,
+            Expression::String(s) => s,
+            Expression::Boolean(b) => b,
+            Expression::Prefix(p) => p,
+            Expression::Infix(i) => i,
+            Expression::If(i) => i,
+            Expression::Block(b) => b,
+            Expression::Function(func) => func,
+            Expression::Return(r) => r,
+            Expression::Call(c) => c,
+        }
+    }
+}
+
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Expression::Identifier(ident) => write!(f, "{}", ident),
-            Expression::Integer(int) => write!(f, "{}", int),
-            Expression::String(s) => write!(f, "{}", s),
-            Expression::Boolean(b) => write!(f, "{}", b),
-            Expression::Prefix(p) => write!(f, "{}", p),
-            Expression::Infix(i) => write!(f, "{}", i),
-            Expression::If(i) => write!(f, "{}", i),
-            Expression::Block(b) => write!(f, "{}", b),
-            Expression::Function(func) => write!(f, "{}", func),
-            Expression::Return(r) => write!(f, "{}", r),
-            Expression::Call(c) => write!(f, "{}", c),
-        }
+        write!(f, "{}", self.inner())
     }
 }
 
 impl fmt::Debug for Expression {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Expression::Identifier(ident) => write!(f, "{:?}", ident),
-            Expression::Integer(int) => write!(f, "{:?}", int),
-            Expression::String(s) => write!(f, "{:?}", s),
-            Expression::Boolean(b) => write!(f, "{:?}", b),
-            Expression::Prefix(p) => write!(f, "{:?}", p),
-            Expression::Infix(i) => write!(f, "{:?}", i),
-            Expression::If(i) => write!(f, "{:?}", i),
-            Expression::Block(b) => write!(f, "{:?}", b),
-            Expression::Function(func) => write!(f, "{:?}", func),
-            Expression::Return(r) => write!(f, "{:?}", r),
-            Expression::Call(c) => write!(f, "{:?}", c),
-        }
+        write!(f, "{:?}", self.inner())
     }
 }
 
@@ -75,64 +69,66 @@ pub enum Statement {
     Expression(ExpressionStatement),
 }
 
+impl Statement {
+    fn inner(&self) -> &dyn ASTNode {
+        match self {
+            Statement::Let(stmt) => stmt,
+            Statement::Return(stmt) => stmt,
+            Statement::Expression(stmt) => stmt,
+        }
+    }
+}
+
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Statement::Let(stmt) => write!(f, "{}", stmt),
-            Statement::Return(stmt) => write!(f, "{}", stmt),
-            Statement::Expression(stmt) => write!(f, "{}", stmt),
-        }
+        write!(f, "{}", self.inner())
     }
 }
 
 impl fmt::Debug for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Statement::Let(stmt) => write!(f, "{:?}", stmt),
-            Statement::Return(stmt) => write!(f, "{:?}", stmt),
-            Statement::Expression(stmt) => write!(f, "{:?}", stmt),
-        }
-    }
-}
-
-impl Statement {
-    pub fn token_literal(&self) -> &str {
-        match self {
-            Statement::Let(stmt) => stmt.token_literal(),
-            Statement::Return(stmt) => stmt.token_literal(),
-            Statement::Expression(stmt) => stmt.token_literal(),
-        }
+        write!(f, "{:?}", self.inner())
     }
 }
 
 /// The trait Node is implemented by all AST nodes.
-pub trait ASTNode: fmt::Display {
+pub trait ASTNode: fmt::Display + fmt::Debug {
     fn token_literal(&self) -> &str;
 }
 
-impl From<Program> for Node {
-    fn from(program: Program) -> Node {
-        Node::Program(program)
-    }
+// macro that impl astnode it could be self.token or self.operator default to token
+macro_rules! impl_astnode_for {
+    ($($t:ty),* $(,)?; $field:ident) => {
+        $(
+            impl ASTNode for $t {
+                fn token_literal(&self) -> &str {
+                    self.$field.value()
+                }
+            }
+        )*
+    };
+    ($($t:ty),* $(,)?) => {
+        impl_astnode_for!($($t),*; token);
+    };
 }
 
-impl From<Statement> for Node {
-    fn from(statement: Statement) -> Node {
-        Node::Statement(statement)
-    }
+macro_rules! impl_from_for_node {
+    ($($source:ty => $variant:ident),* $(,)?) => {
+        $(
+            impl From<$source> for Node {
+                fn from(source: $source) -> Node {
+                    Node::$variant(source)
+                }
+            }
+        )*
+    };
 }
 
-impl From<Expression> for Node {
-    fn from(expression: Expression) -> Node {
-        Node::Expression(expression)
-    }
-}
-
-impl fmt::Debug for dyn ASTNode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
-    }
-}
+impl_from_for_node!(
+    Program => Program,
+    Statement => Statement,
+    Expression => Expression,
+);
 
 #[derive(Debug)]
 pub struct Program {
@@ -156,7 +152,7 @@ impl Default for Program {
 impl ASTNode for Program {
     fn token_literal(&self) -> &str {
         if !self.statements.is_empty() {
-            return self.statements[0].token_literal();
+            return self.statements[0].inner().token_literal();
         }
         ""
     }
@@ -195,11 +191,7 @@ impl From<LetStatement> for Statement {
     }
 }
 
-impl ASTNode for LetStatement {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(LetStatement);
 
 impl fmt::Display for LetStatement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -227,11 +219,7 @@ impl Identifier {
     }
 }
 
-impl ASTNode for Identifier {
-    fn token_literal(&self) -> &str {
-        &self.value
-    }
-}
+impl_astnode_for!(Identifier);
 
 impl From<Identifier> for Expression {
     fn from(ident: Identifier) -> Expression {
@@ -261,11 +249,7 @@ impl IntegerLiteral {
     }
 }
 
-impl ASTNode for IntegerLiteral {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(IntegerLiteral);
 
 impl From<IntegerLiteral> for Expression {
     fn from(int: IntegerLiteral) -> Expression {
@@ -292,11 +276,7 @@ impl StringLiteral {
     }
 }
 
-impl ASTNode for StringLiteral {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(StringLiteral);
 
 impl fmt::Display for StringLiteral {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -323,11 +303,7 @@ impl Boolean {
     }
 }
 
-impl ASTNode for Boolean {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(Boolean);
 
 impl From<Boolean> for Expression {
     fn from(b: Boolean) -> Expression {
@@ -356,11 +332,7 @@ impl PrefixExpression {
     }
 }
 
-impl ASTNode for PrefixExpression {
-    fn token_literal(&self) -> &str {
-        self.operator.value()
-    }
-}
+impl_astnode_for!(PrefixExpression; operator);
 
 impl From<PrefixExpression> for Expression {
     fn from(prefix: PrefixExpression) -> Expression {
@@ -391,11 +363,7 @@ impl InfixExpression {
     }
 }
 
-impl ASTNode for InfixExpression {
-    fn token_literal(&self) -> &str {
-        self.operator.value()
-    }
-}
+impl_astnode_for!(InfixExpression; operator);
 
 impl From<InfixExpression> for Expression {
     fn from(infix: InfixExpression) -> Expression {
@@ -439,11 +407,7 @@ impl IfExpression {
     }
 }
 
-impl ASTNode for IfExpression {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(IfExpression);
 
 impl From<IfExpression> for Expression {
     fn from(if_expr: IfExpression) -> Expression {
@@ -483,11 +447,7 @@ impl BlockStatement {
     }
 }
 
-impl ASTNode for BlockStatement {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(BlockStatement);
 
 impl From<BlockStatement> for Expression {
     fn from(block: BlockStatement) -> Expression {
@@ -526,11 +486,7 @@ impl FunctionLiteral {
     }
 }
 
-impl ASTNode for FunctionLiteral {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(FunctionLiteral);
 
 impl From<FunctionLiteral> for Expression {
     fn from(func: FunctionLiteral) -> Expression {
@@ -575,11 +531,7 @@ impl CallExpression {
     }
 }
 
-impl ASTNode for CallExpression {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(CallExpression);
 
 impl From<CallExpression> for Expression {
     fn from(call: CallExpression) -> Expression {
@@ -617,11 +569,7 @@ impl ReturnStatement {
     }
 }
 
-impl ASTNode for ReturnStatement {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(ReturnStatement);
 
 impl From<ReturnStatement> for Statement {
     fn from(stmt: ReturnStatement) -> Statement {
@@ -647,11 +595,7 @@ impl ExpressionStatement {
     }
 }
 
-impl ASTNode for ExpressionStatement {
-    fn token_literal(&self) -> &str {
-        self.token.value()
-    }
-}
+impl_astnode_for!(ExpressionStatement);
 
 impl From<ExpressionStatement> for Statement {
     fn from(stmt: ExpressionStatement) -> Statement {
