@@ -42,6 +42,7 @@ impl<'a> Parser<'a> {
             token::Token::IF => self.parse_if_expression(),
             token::Token::FUNCTION => self.parse_function_literal(),
             token::Token::LBRACKET => self.parse_array_literal(),
+            token::Token::LBRACE => self.parse_hash_literal(),
             _ => {
                 let message = format!("No prefix parse function for {:?}", t.value());
                 error!("{}", message);
@@ -270,6 +271,47 @@ impl<'a> Parser<'a> {
         Ok(ast::ArrayLiteral::new(array_token, elements).into())
     }
 
+    fn parse_hash_literal(&mut self) -> Result<ast::Expression> {
+        debug!("Parsing hash literal: {:?}", self.cur_token);
+        let hash_token = self.cur_token.clone();
+        let mut pairs = Vec::new();
+
+        while !self.peek_token.is_of_type(&token::Token::RBRACE) {
+            self.next_token();
+            let key = self.parse_expression(Precedence::LOWEST)?;
+
+            if !self.expect_peek(&token::Token::COLON) {
+                return Err(anyhow!(
+                    "Expected next token to be ':', got {:?}",
+                    self.peek_token
+                ));
+            }
+
+            self.next_token();
+            let value = self.parse_expression(Precedence::LOWEST)?;
+
+            pairs.push((key, value));
+
+            if !self.peek_token.is_of_type(&token::Token::RBRACE)
+                && !self.expect_peek(&token::Token::COMMA)
+            {
+                return Err(anyhow!(
+                    "Expected next token to be '}}' or ',', got {:?}",
+                    self.peek_token
+                ));
+            }
+        }
+
+        if !self.expect_peek(&token::Token::RBRACE) {
+            return Err(anyhow!(
+                "Expected next token to be '}}', got {:?}",
+                self.peek_token
+            ));
+        }
+
+        Ok(ast::HashLiteral::new(hash_token, pairs).into())
+    }
+
     fn parse_expression_list(&mut self, end: &token::Token) -> Result<Vec<ast::Expression>> {
         let mut list = Vec::new();
 
@@ -452,6 +494,8 @@ pub enum Precedence {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::ast::ASTNode;
     use crate::lexer;
@@ -1176,6 +1220,134 @@ mod tests {
                 );
             } else {
                 panic!("Expected IndexExpression, got {:?}", program.statements[0]);
+            }
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
+    }
+
+    #[test]
+    fn test_parsing_hash_literal_string_keys() {
+        let input = r#"{"one": 1, "two": 2, "three": 3}"#;
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = match p.parse_program() {
+            Ok(program) => program,
+            Err(e) => panic!("{}", e),
+        };
+
+        assert!(p.errors.is_empty(), "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            if let ast::Expression::Hash(hash) = &stmt.expression {
+                assert_eq!(hash.pairs.len(), 3);
+
+                let mut expected = HashMap::new();
+                expected.insert("one", 1);
+                expected.insert("two", 2);
+                expected.insert("three", 3);
+
+                for (key, value) in &hash.pairs {
+                    if let ast::Expression::String(string) = &**key {
+                        test_integer_literal(value, expected[string.value.as_str()]);
+                    } else {
+                        panic!("Expected StringLiteral, got {:?}", key);
+                    }
+                }
+            } else {
+                panic!("Expected HashLiteral, got {:?}", program.statements[0]);
+            }
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
+    }
+
+    #[test]
+    fn test_parsing_hash_literal_empty() {
+        let input = "{}";
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = match p.parse_program() {
+            Ok(program) => program,
+            Err(e) => panic!("{}", e),
+        };
+
+        assert!(p.errors.is_empty(), "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            if let ast::Expression::Hash(hash) = &stmt.expression {
+                assert_eq!(hash.pairs.len(), 0);
+            } else {
+                panic!("Expected HashLiteral, got {:?}", program.statements[0]);
+            }
+        } else {
+            panic!(
+                "Expected ExpressionStatement, got {:?}",
+                program.statements[0]
+            );
+        }
+    }
+
+    #[test]
+    fn test_hash_with_expression() {
+        let input = r#"{"one": 0 + 1, "two": 10 - 8, "three": 15 / 5}"#;
+
+        let mut l = lexer::Lexer::new(input);
+        let mut p = Parser::new(&mut l);
+        let program = match p.parse_program() {
+            Ok(program) => program,
+            Err(e) => panic!("{}", e),
+        };
+
+        assert!(p.errors.is_empty(), "Parser has errors");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program has wrong number of statements"
+        );
+
+        if let ast::Statement::Expression(stmt) = &program.statements[0] {
+            if let ast::Expression::Hash(hash) = &stmt.expression {
+                assert_eq!(hash.pairs.len(), 3);
+
+                let mut expected = HashMap::new();
+                expected.insert("one", (Expected::INTEGER(0), "+", Expected::INTEGER(1)));
+                expected.insert("two", (Expected::INTEGER(10), "-", Expected::INTEGER(8)));
+                expected.insert("three", (Expected::INTEGER(15), "/", Expected::INTEGER(5)));
+
+                for (key, value) in &hash.pairs {
+                    if let ast::Expression::String(string) = &**key {
+                        if let Some((left, operator, right)) =
+                            expected.remove(string.value.as_str())
+                        {
+                            test_infix_expression(value, left, operator, right);
+                        } else {
+                            panic!("Expected StringLiteral, got {:?}", key);
+                        }
+                    } else {
+                        panic!("Expected StringLiteral, got {:?}", key);
+                    }
+                }
+            } else {
+                panic!("Expected HashLiteral, got {:?}", program.statements[0]);
             }
         } else {
             panic!(

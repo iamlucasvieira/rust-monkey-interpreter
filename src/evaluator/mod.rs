@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::builtins::Builtins;
 use crate::environment::Environment;
-use crate::object::{self, Object};
+use crate::object::{self, HashKey, Object};
 use crate::token;
 use anyhow::{self, Result};
 use log::{debug, error};
@@ -66,6 +66,7 @@ fn eval_expression(expr: ast::Expression, env: Rc<RefCell<Environment>>) -> Resu
             Ok(Rc::new(Object::Array(elements)))
         }
         ast::Expression::Index(literal) => eval_index_expression(literal, Rc::clone(&env)),
+        ast::Expression::Hash(literal) => eval_hash_literal(literal, Rc::clone(&env)),
     }
 }
 
@@ -110,6 +111,17 @@ fn eval_index_expression(
     }
 }
 
+fn eval_hash_literal(expr: ast::HashLiteral, env: Rc<RefCell<Environment>>) -> Result<Rc<Object>> {
+    let mut pairs = std::collections::HashMap::new();
+
+    for (key_expr, value_expr) in expr.pairs {
+        let key = eval((*key_expr).into(), Rc::clone(&env))?;
+        let value = eval((*value_expr).into(), Rc::clone(&env))?;
+        let key_hash = (*key).hash_key()?;
+        pairs.insert(key_hash, (key, value));
+    }
+    Ok(Rc::new(Object::Hash(pairs)))
+}
 fn apply_function(func: Rc<Object>, args: Vec<Rc<Object>>) -> Result<Rc<Object>> {
     match &*func {
         Object::Function {
@@ -714,6 +726,46 @@ mod tests {
             } else {
                 test_null_object(&evaluated);
             }
+        }
+    }
+
+    #[test]
+    fn test_hash_literals() {
+        init();
+        debug!("test_hash_literals");
+        let input = r#"let two = "two";
+        {
+            "one": 10 - 9,
+            two: 1 + 1,
+            "thr" + "ee": 6 / 2,
+            4: 4,
+            true: 5,
+            false: 6
+        }"#;
+        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+
+        let expected = vec![
+            (Object::String("one".to_string()).hash_key(), 1),
+            (Object::String("two".to_string()).hash_key(), 2),
+            (Object::String("three".to_string()).hash_key(), 3),
+            (Object::Integer(4).hash_key(), 4),
+            (object::TRUE.hash_key(), 5),
+            (object::FALSE.hash_key(), 6),
+        ];
+
+        match &*evaluated {
+            Object::Hash(pairs) => {
+                assert_eq!(
+                    pairs.len(),
+                    expected.len(),
+                    "Hash has wrong number of pairs"
+                );
+                for (key, value) in expected {
+                    let (_, pair_value) = pairs.get(&key.unwrap()).unwrap();
+                    test_integer_object(pair_value, value);
+                }
+            }
+            _ => panic!("object is not Hash. got={}", evaluated.object_type()),
         }
     }
 }

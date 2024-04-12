@@ -322,6 +322,7 @@ let result = add(five, ten);
 \"foobar\"
 \"foo bar\"
 [1, 2];
+{\"foo\": \"bar\"}
 ",
         );
         let mut l = Lexer::new(&input);
@@ -507,6 +508,26 @@ let result = add(five, ten);
             TestCase {
                 expected_type: token::Token::SEMICOLON,
                 expected_literal: ";",
+            },
+            TestCase {
+                expected_type: token::Token::LBRACE,
+                expected_literal: "{",
+            },
+            TestCase {
+                expected_type: token::Token::STRING("foo".to_string()),
+                expected_literal: "foo",
+            },
+            TestCase {
+                expected_type: token::Token::COLON,
+                expected_literal: ":",
+            },
+            TestCase {
+                expected_type: token::Token::STRING("bar".to_string()),
+                expected_literal: "bar",
+            },
+            TestCase {
+                expected_type: token::Token::RBRACE,
+                expected_literal: "}",
             },
             TestCase {
                 expected_type: token::Token::EOF,

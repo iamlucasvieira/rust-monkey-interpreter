@@ -1,13 +1,22 @@
 use crate::ast;
 use crate::builtins::Builtins;
 use crate::environment::Environment;
+use anyhow::Result;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt;
+use std::hash::DefaultHasher;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::rc::Rc;
 
 pub const TRUE: Object = Object::Boolean(true);
 pub const FALSE: Object = Object::Boolean(false);
 pub const NULL: Object = Object::Null;
+
+pub trait HashKey {
+    fn hash_key(&self) -> Result<u64>;
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Object {
@@ -23,6 +32,28 @@ pub enum Object {
     },
     BuiltInFunction(Builtins),
     Array(Vec<Rc<Object>>),
+    Hash(HashMap<u64, (Rc<Object>, Rc<Object>)>),
+}
+
+impl HashKey for Object {
+    fn hash_key(&self) -> Result<u64> {
+        match self {
+            Object::Integer(value) => Ok(*value as u64),
+            Object::Boolean(value) => {
+                if *value {
+                    Ok(1)
+                } else {
+                    Ok(0)
+                }
+            }
+            Object::String(value) => {
+                let mut hasher = DefaultHasher::new();
+                (*value).hash(&mut hasher);
+                Ok(hasher.finish())
+            }
+            _ => anyhow::bail!("unusable as hash key"),
+        }
+    }
 }
 
 impl Object {
@@ -36,6 +67,7 @@ impl Object {
             Object::Function { .. } => "FUNCTION",
             Object::BuiltInFunction(_) => "BUILTIN_FUNCTION",
             Object::Array(_) => "ARRAY",
+            Object::Hash(..) => "HASH",
         }
     }
 
@@ -66,6 +98,13 @@ impl fmt::Display for Object {
             Object::Array(elements) => {
                 let elements: Vec<String> = elements.iter().map(|e| e.to_string()).collect();
                 write!(f, "[{}]", elements.join(", "))
+            }
+            Object::Hash(pairs) => {
+                let pairs: Vec<String> = pairs
+                    .iter()
+                    .map(|(_, (k, v))| format!("{}: {}", k, v))
+                    .collect();
+                write!(f, "{{{}}}", pairs.join(", "))
             }
         }
     }
@@ -164,5 +203,29 @@ pub mod tests {
         for (err, expected) in tests {
             test_error(err, expected);
         }
+    }
+
+    #[test]
+    fn test_string_hash_key() {
+        let hello1 = Object::String("Hello World".to_string());
+        let hello2 = Object::String("Hello World".to_string());
+        let diff1 = Object::String("My name is johnny".to_string());
+        let diff2 = Object::String("My name is johnny".to_string());
+
+        assert_eq!(
+            hello1.hash_key().unwrap(),
+            hello2.hash_key().unwrap(),
+            "strings with same content have different hash keys"
+        );
+        assert_eq!(
+            diff1.hash_key().unwrap(),
+            diff2.hash_key().unwrap(),
+            "strings with same content have different hash keys"
+        );
+        assert_ne!(
+            hello1.hash_key().unwrap(),
+            diff1.hash_key().unwrap(),
+            "strings with different content have same hash keys"
+        );
     }
 }

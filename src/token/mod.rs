@@ -1,7 +1,7 @@
 use crate::parser::Precedence;
 use std::fmt;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum Token {
     ILLEGAL,
     EOF,
@@ -24,6 +24,7 @@ pub enum Token {
 
     COMMA,
     SEMICOLON,
+    COLON,
 
     LPAREN,
     RPAREN,
@@ -71,6 +72,7 @@ impl Token {
 
             Token::COMMA => ",",
             Token::SEMICOLON => ";",
+            Token::COLON => ":",
 
             Token::LPAREN => "(",
             Token::RPAREN => ")",
@@ -110,6 +112,7 @@ impl Token {
             "==" => Token::EQ,
             "!=" => Token::NOTEQ,
             "" => Token::EOF,
+            ":" => Token::COLON,
             _ => Token::ILLEGAL,
         }
     }
