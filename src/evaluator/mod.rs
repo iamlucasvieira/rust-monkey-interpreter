@@ -363,7 +363,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated =
-                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
             test_integer_object(&evaluated, expected);
         }
     }
@@ -396,7 +396,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated =
-                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
             test_boolean_object(&evaluated, expected);
         }
     }
@@ -416,7 +416,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated =
-                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
             test_boolean_object(&evaluated, expected);
         }
     }
@@ -437,7 +437,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated =
-                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
             match expected {
                 Some(value) => test_integer_object(&evaluated, value),
                 None => test_null_object(&evaluated),
@@ -467,7 +467,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated =
-                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
             test_integer_object(&evaluated, expected);
         }
     }
@@ -540,7 +540,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated =
-                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
             test_integer_object(&evaluated, expected);
         }
     }
@@ -550,7 +550,7 @@ mod tests {
         init();
         debug!("test_function_object");
         let input = "fn(x) { x + 2; }";
-        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
 
         match &*evaluated {
             Object::Function {
@@ -580,7 +580,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated =
-                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
             test_integer_object(&evaluated, expected);
         }
     }
@@ -596,7 +596,7 @@ mod tests {
         let addTwo = newAdder(2);
         addTwo(3);
         "#;
-        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
         test_integer_object(&evaluated, 5);
     }
 
@@ -605,7 +605,7 @@ mod tests {
         init();
         debug!("test_string_literal");
         let input = r#""Hello, World!""#;
-        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
         match &*evaluated {
             Object::String(value) => assert_eq!(value, "Hello, World!"),
             _ => panic!("object is not String. got={}", evaluated.object_type()),
@@ -617,7 +617,7 @@ mod tests {
         init();
         debug!("test_string_concatenation");
         let input = r#""Hello" + " " + "World!""#;
-        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
         match &*evaluated {
             Object::String(value) => assert_eq!(value, "Hello World!"),
             _ => panic!("object is not String. got={}", evaluated.object_type()),
@@ -651,7 +651,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated =
-                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
             assert_eq!(*evaluated, expected);
         }
     }
@@ -682,7 +682,7 @@ mod tests {
         init();
         debug!("test_array_literals");
         let input = "[1, 2 * 2, 3 + 3]";
-        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
         match &*evaluated {
             Object::Array(elements) => {
                 assert_eq!(elements.len(), 3);
@@ -719,7 +719,7 @@ mod tests {
 
         for (input, expected) in tests {
             let evaluated =
-                test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
 
             if let Object::Integer(i) = expected {
                 test_integer_object(&evaluated, i);
@@ -742,7 +742,7 @@ mod tests {
             true: 5,
             false: 6
         }"#;
-        let evaluated = test_eval(input).expect(&format!("Failed to evaluate input: {}", input));
+        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
 
         let expected = vec![
             (Object::String("one".to_string()).hash_key(), 1),

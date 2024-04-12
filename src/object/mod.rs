@@ -135,7 +135,7 @@ pub mod tests {
     pub fn test_integer_object(obj: &Object, expected: i64) {
         match obj {
             Object::Integer(value) => assert_eq!(*value, expected),
-            Object::Return(value) => test_integer_object(&**value, expected),
+            Object::Return(value) => test_integer_object(value, expected),
             _ => panic!("object is not Integer. got={}", obj.object_type()),
         }
     }

@@ -684,7 +684,7 @@ impl fmt::Display for HashLiteral {
         let pairs = self
             .pairs
             .iter()
-            .map(|(key, value)| format!("{}: {}", key.to_string(), value.to_string()))
+            .map(|(key, value)| format!("{}: {}", key, value))
             .collect::<Vec<String>>()
             .join(", ");
         write!(f, "{{{}}}", pairs)

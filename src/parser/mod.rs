@@ -876,7 +876,7 @@ mod tests {
                 expected,
                 "Expected {}, got {}",
                 expected,
-                program.to_string()
+                program
             );
         }
     }
