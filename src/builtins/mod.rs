@@ -9,6 +9,7 @@ pub enum Builtins {
     Last,
     Rest,
     Push,
+    Puts,
 }
 
 impl Builtins {
@@ -19,6 +20,7 @@ impl Builtins {
             Builtins::Last => builtin_last(args),
             Builtins::Rest => builtin_rest(args),
             Builtins::Push => builtin_push(args),
+            Builtins::Puts => builtin_puts(args),
         }
     }
 }
@@ -33,6 +35,7 @@ impl std::str::FromStr for Builtins {
             "last" => Ok(Builtins::Last),
             "rest" => Ok(Builtins::Rest),
             "push" => Ok(Builtins::Push),
+            "puts" => Ok(Builtins::Puts),
             _ => anyhow::bail!("unknown builtin function: {}", s),
         }
     }
@@ -113,4 +116,11 @@ fn builtin_push(args: Vec<Rc<Object>>) -> Result<Rc<Object>> {
             args[0].object_type()
         ))),
     }
+}
+
+fn builtin_puts(args: Vec<Rc<Object>>) -> Result<Rc<Object>> {
+    for arg in args {
+        println!("{}", arg);
+    }
+    Ok(Rc::new(Object::Null))
 }
