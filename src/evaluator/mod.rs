@@ -103,6 +103,18 @@ fn eval_index_expression(
             }
             Ok(Rc::clone(&elements[*i as usize]))
         }
+        (Object::Hash(pairs), _) => {
+            let key = index.hash_key()?;
+            if let Some((_, value)) = pairs.get(&key) {
+                Ok(Rc::clone(value))
+            } else {
+                // Not found key
+                anyhow::bail!(object::Error::KeyError(format!(
+                    "key value not found: {}",
+                    index
+                )))
+            }
+        }
         _ => anyhow::bail!(object::Error::UnkownOperator(format!(
             "{}[{}]",
             left.object_type(),
@@ -516,6 +528,18 @@ mod tests {
                 "foobar",
                 object::Error::IdentifierNotFound("foobar".to_string()),
             ),
+            (
+                r#""Hello" - "World""#,
+                object::Error::UnkownOperator("STRING - STRING".to_string()),
+            ),
+            (
+                r#"{"name": "Monkey"}[fn(x) { x }];"#,
+                object::Error::KeyError("unusable as hash key: FUNCTION".to_string()),
+            ),
+            (
+                r#"{1:2}[2]"#,
+                object::Error::KeyError("key value not found: 2".to_string()),
+            ),
         ];
         for (input, expected) in tests {
             let err = test_eval(input)
@@ -781,9 +805,7 @@ mod tests {
         debug!("tesT_hash_index_expression");
         let tests = vec![
             (r#"{"foo": 5}["foo"]"#, Object::Integer(5)),
-            (r#"{"foo": 5}["bar"]"#, object::NULL),
             (r#"let key = "foo"; {"foo": 5}[key]"#, Object::Integer(5)),
-            (r#"{}["foo"]"#, object::NULL),
             (r#"{5: 5}[5]"#, Object::Integer(5)),
             (r#"{true: 5}[true]"#, Object::Integer(5)),
             (r#"{false: 5}[false]"#, Object::Integer(5)),
@@ -796,8 +818,9 @@ mod tests {
             if let Object::Integer(i) = expected {
                 test_integer_object(&evaluated, i);
             } else {
-                test_null_object(&evaluated);
+                panic!("object is not Integer. got={}", evaluated.object_type());
             }
         }
     }
+
 }
