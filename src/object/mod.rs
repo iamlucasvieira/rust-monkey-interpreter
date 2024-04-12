@@ -51,7 +51,10 @@ impl HashKey for Object {
                 (*value).hash(&mut hasher);
                 Ok(hasher.finish())
             }
-            _ => anyhow::bail!("unusable as hash key"),
+            _ => anyhow::bail!(Error::KeyError(format!(
+                "unusable as hash key: {}",
+                self.object_type()
+            ))),
         }
     }
 }
@@ -115,6 +118,7 @@ pub enum Error {
     TypeMismatch(String),
     UnkownOperator(String),
     IdentifierNotFound(String),
+    KeyError(String),
 }
 
 impl fmt::Display for Error {
@@ -123,6 +127,7 @@ impl fmt::Display for Error {
             Error::TypeMismatch(msg) => write!(f, "TypeMismatch: {}", msg),
             Error::UnkownOperator(msg) => write!(f, "UnkownOperator: {}", msg),
             Error::IdentifierNotFound(msg) => write!(f, "IdentifierNotFound: {}", msg),
+            Error::KeyError(msg) => write!(f, "KeyError: {}", msg),
         }
     }
 }
@@ -159,6 +164,7 @@ pub mod tests {
             Error::TypeMismatch(msg) => assert_eq!(msg, expected),
             Error::UnkownOperator(msg) => assert_eq!(msg, expected),
             Error::IdentifierNotFound(msg) => assert_eq!(msg, expected),
+            Error::KeyError(msg) => assert_eq!(msg, expected),
         }
     }
 
@@ -198,6 +204,8 @@ pub mod tests {
         let tests = vec![
             (Error::TypeMismatch("foo".to_string()), "foo"),
             (Error::UnkownOperator("bar".to_string()), "bar"),
+            (Error::IdentifierNotFound("baz".to_string()), "baz"),
+            (Error::KeyError("qux".to_string()), "qux"),
         ];
 
         for (err, expected) in tests {

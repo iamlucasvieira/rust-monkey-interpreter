@@ -115,8 +115,8 @@ fn eval_hash_literal(expr: ast::HashLiteral, env: Rc<RefCell<Environment>>) -> R
     let mut pairs = std::collections::HashMap::new();
 
     for (key_expr, value_expr) in expr.pairs {
-        let key = eval((*key_expr).into(), Rc::clone(&env))?;
-        let value = eval((*value_expr).into(), Rc::clone(&env))?;
+        let key = eval(key_expr.into(), Rc::clone(&env))?;
+        let value = eval(value_expr.into(), Rc::clone(&env))?;
         let key_hash = (*key).hash_key()?;
         pairs.insert(key_hash, (key, value));
     }
@@ -550,7 +550,8 @@ mod tests {
         init();
         debug!("test_function_object");
         let input = "fn(x) { x + 2; }";
-        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
+        let evaluated =
+            test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
 
         match &*evaluated {
             Object::Function {
@@ -596,7 +597,8 @@ mod tests {
         let addTwo = newAdder(2);
         addTwo(3);
         "#;
-        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
+        let evaluated =
+            test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
         test_integer_object(&evaluated, 5);
     }
 
@@ -605,7 +607,8 @@ mod tests {
         init();
         debug!("test_string_literal");
         let input = r#""Hello, World!""#;
-        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
+        let evaluated =
+            test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
         match &*evaluated {
             Object::String(value) => assert_eq!(value, "Hello, World!"),
             _ => panic!("object is not String. got={}", evaluated.object_type()),
@@ -617,7 +620,8 @@ mod tests {
         init();
         debug!("test_string_concatenation");
         let input = r#""Hello" + " " + "World!""#;
-        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
+        let evaluated =
+            test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
         match &*evaluated {
             Object::String(value) => assert_eq!(value, "Hello World!"),
             _ => panic!("object is not String. got={}", evaluated.object_type()),
@@ -682,7 +686,8 @@ mod tests {
         init();
         debug!("test_array_literals");
         let input = "[1, 2 * 2, 3 + 3]";
-        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
+        let evaluated =
+            test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
         match &*evaluated {
             Object::Array(elements) => {
                 assert_eq!(elements.len(), 3);
@@ -742,7 +747,8 @@ mod tests {
             true: 5,
             false: 6
         }"#;
-        let evaluated = test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
+        let evaluated =
+            test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
 
         let expected = vec![
             (Object::String("one".to_string()).hash_key(), 1),
@@ -766,6 +772,32 @@ mod tests {
                 }
             }
             _ => panic!("object is not Hash. got={}", evaluated.object_type()),
+        }
+    }
+
+    #[test]
+    fn test_hash_index_expression() {
+        init();
+        debug!("tesT_hash_index_expression");
+        let tests = vec![
+            (r#"{"foo": 5}["foo"]"#, Object::Integer(5)),
+            (r#"{"foo": 5}["bar"]"#, object::NULL),
+            (r#"let key = "foo"; {"foo": 5}[key]"#, Object::Integer(5)),
+            (r#"{}["foo"]"#, object::NULL),
+            (r#"{5: 5}[5]"#, Object::Integer(5)),
+            (r#"{true: 5}[true]"#, Object::Integer(5)),
+            (r#"{false: 5}[false]"#, Object::Integer(5)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated =
+                test_eval(input).unwrap_or_else(|_| panic!("Failed to evaluate input: {}", input));
+
+            if let Object::Integer(i) = expected {
+                test_integer_object(&evaluated, i);
+            } else {
+                test_null_object(&evaluated);
+            }
         }
     }
 }

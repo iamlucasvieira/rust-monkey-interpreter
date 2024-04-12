@@ -1257,7 +1257,7 @@ mod tests {
                 expected.insert("three", 3);
 
                 for (key, value) in &hash.pairs {
-                    if let ast::Expression::String(string) = &**key {
+                    if let ast::Expression::String(string) = key {
                         test_integer_literal(value, expected[string.value.as_str()]);
                     } else {
                         panic!("Expected StringLiteral, got {:?}", key);
@@ -1334,7 +1334,7 @@ mod tests {
                 expected.insert("three", (Expected::INTEGER(15), "/", Expected::INTEGER(5)));
 
                 for (key, value) in &hash.pairs {
-                    if let ast::Expression::String(string) = &**key {
+                    if let ast::Expression::String(string) = key {
                         if let Some((left, operator, right)) =
                             expected.remove(string.value.as_str())
                         {
